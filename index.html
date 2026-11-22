@@ -27,6 +27,17 @@
   .logo canvas{width:52px;height:52px}
   .logo h1{margin:0;font-size:28px;line-height:1.1;font-weight:700;color:var(--coin);text-shadow:3px 3px 0 var(--edge)}
   .logo p{margin:2px 0 0;font-size:12px;color:var(--mute)}
+  .who{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .who .id{color:var(--frame);font-size:13px}
+  .who .sc{color:var(--coin);font-weight:700;font-size:13px}
+  .who button{background:none;border:0;color:var(--mute);text-decoration:underline;font-size:12px;cursor:pointer;padding:0}
+  .who button:hover{color:var(--frame)}
+  .login{text-align:left;margin:4px 0 0}
+  .login label{display:block;margin:0 0 12px;font-size:14px;color:var(--mute)}
+  .login input{display:block;width:100%;margin-top:4px;font:18px var(--pix);background:var(--edge);color:var(--frame);border:0;padding:10px 12px;box-shadow:inset 0 0 0 3px var(--line)}
+  .login input:focus{outline:none;box-shadow:inset 0 0 0 3px var(--coin)}
+  .formerr{color:var(--ember);min-height:1.6em;margin:0 0 12px;font-size:14px}
+  .mbox .small{font-size:13px;color:var(--mute);margin:0 0 16px}
   .map{list-style:none;margin:0;padding:22px 0 4px;display:flex;flex:1;min-width:280px;overflow-x:auto}
   .map li{position:relative;flex:1;min-width:72px;display:flex;flex-direction:column;align-items:center;gap:8px}
   .map li+li::before{content:'';position:absolute;top:15px;right:50%;width:100%;height:4px;z-index:0;
@@ -153,7 +164,7 @@
 <header>
   <div class="logo">
     <canvas class="px" id="logoDino" width="16" height="16"></canvas>
-    <div><h1>파이 탐험대</h1><p>코드로 공룡을 움직이는 파이썬 바다 모험</p></div>
+    <div><h1>파이 탐험대</h1><p class="who" id="who">코드로 공룡을 움직이는 파이썬 바다 모험</p></div>
   </div>
   <ol class="map" id="map" aria-label="단원 지도"></ol>
 </header>
@@ -393,6 +404,12 @@ def _run(code, cfg_json):
 </script>
 
 <script>
+/* ======================================================
+   ▼ 선생님 설정: Apps Script 웹 앱 주소를 따옴표 안에 붙여넣어요.
+     비워 두면 점수는 각 컴퓨터에만 저장돼요.
+   ====================================================== */
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwiBMKUdklkIRuSiyhTMikOMVNe6gpO0M0pEezLQBzLPfIn-bp6uAsyLrwMgDJP1Lbx0w/exec';
+
 const SPR = {"pal": {"k": "#071a2e", "g": "#6cc24a", "d": "#3f8f3a", "b": "#e4f5b0", "w": "#ffffff", "o": "#ff9b3d", "p": "#ff8fa3", "n": "#9a6338", "m": "#6e4426", "c": "#f1d6a8", "y": "#ffcc4d", "t": "#3d7a3a", "T": "#2c5e30", "l": "#5aa64a", "L": "#4b9440", "q": "#5ad1e6", "Q": "#b9f3fb", "r": "#2a8fae", "s": "#8d93a8", "S": "#c9cdd8", "h": "#3a2a22", "H": "#5a4030", "e": "#7fd65f", "f": "#ffe680", "F": "#ff9fc0", "x": "#262b5c", "a": "#8fd18a", "A": "#f3d99c", "B": "#e2c07e", "C": "#3fb8cc", "D": "#9ae8f0", "E": "#1c6a96", "G": "#2c86b4", "R": "#e57aa3", "W": "#fdfaf2", "Z": "#cfc8e6", "U": "#5b3a8c", "V": "#8a63c9", "X": "#ff8a5c", "K": "#071a2e"}, "sp": {"dino0": ["................", ".........k......", "........kokkkk..", "........kggwwgk.", ".......kgggwkgk.", ".....k.kgggwkggk", "....kokogggggpgk", "...kkgggggggddk.", "..koggggggggkk..", "..kgggggbbggk...", ".kgggggbbbbgk...", "kdgggggbbbbdk...", ".kdddggbbbdk....", "..kkkdddddk.....", "....kdkkkdk.....", ".....k...k......"], "dino1": ["................", ".........k......", "........kokkkk..", "........kggwwgk.", ".......kgggwkgk.", ".....k.kgggwkggk", "....kokogggggpgk", "...kkgggggggddk.", "..koggggggggkk..", "..kgggggbbggk...", ".kgggggbbbbgk...", "kdgggggbbbbdk...", ".kddgggbbbgk....", "..kkdddddddk....", "...kdkkkkkdk....", "....k.....k....."], "turtle": ["................", ".......kk.......", "......kaak......", ".....kaaaak.....", "....kywyywyk....", "....kakaakak....", "....kaammaak....", "..kkknaaaankkk..", ".kannnmmnmnnnak.", "kaannmnmmnmnnaak", "kannnmmmmmmnnnak", ".kknnmmnmmmnnkk.", "..knnnnmmnnnnk..", "...knnnnnnnnk...", "...kaannnnaak...", "....kkkkkkkk...."], "pearl": ["................", "......kkkk......", "....kkFFFFkk....", "...kRFFRFFRFk...", "..kFFFFFFFFFFk..", "...kkkkkkkkkk...", ".....kwWWWk.....", ".....kwWWWk.....", "..kkkkWWWZkkkk..", ".kRRRRWWWZRRRRk.", ".kFFFFFFFFFFFFk.", "..kFRFFRFFRFFk..", "...kRFFRFFRFk...", "....kkFFFFkk....", "......kkkk......", "................"], "urchin": ["................", "................", "................", ".......k........", ".....kkUk.k.....", "....kUkUkkUk....", "...kkUkkkkUkk...", "..kUUUUUUUUUUk..", "..kkkUVVUUUkkk..", ".kUUUUUUUUUUUUk.", "..kkkUUUUUUkkk..", "..kUUUUUUUUUUk..", "...kkUkkkkUkk...", "....kUkkUkUk....", ".....k.kUkk.....", "........k......."], "sand0": ["AAAAAAAAAAAAAABA", "AAAABAAAAAAAAABA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAABAAAAA", "AAAAAABAAAAAAAAA", "ABAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAABAAAA", "AAAAAAABAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAABAAAAAAAAA", "AAAAAAAAAAAAAAAA"], "sand1": ["AAAAAAAAAAAAAAAA", "AAAAAAAABAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAABFAAAAAAAAAA", "AAAAFRFBAABAAAAA", "AAAAAAAAAAAAAAAA", "BAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAABAAA", "AAAAAAAAAAAABAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAABAAAAAAA", "AAAAAAAAAAAAAAAA", "BAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA"], "sand2": ["AAABAAAAAAAAAAAA", "AAAAAAAAAAAAABAA", "BAABAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAABAAAAAAAA", "AAAAAAAAAAAAAAAA", "BAAAAAAAAAAAAAAA", "AAAAAABABAAAABAA", "AAAAAAAAAAXAAAAA", "AAAAAAAAAAXAAAAA", "AAAAAAAAXXXXXAAA", "AAAAAAAAAAXAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA"], "sand3": ["AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "ABAAAAAAAAABAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAABAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "ABAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAsAAAAAAAAAA", "AAABsSAAAAAAAAAA", "BAAAAAAAAAABAAAA", "AAAABAAAAAAAAAAA", "AAAAAAAAAAAAAABA"], "shallow0": ["CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCDDD", "CCCCCCCCCCCCCCCC", "CCDDDCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCDDDCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCDDDCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCDDDC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC"], "shallow1": ["CCCCCCCCCCCCCCCC", "DDCCCCCCCCCCCCCD", "CCCCCCCCCCCCCCCC", "CCCCDDDCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCDDDCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCDDDCCCCCCC", "CCCCCCCCCCCCCCCC", "DCCCCCCCCCCCCCDD", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC"], "deep0": ["EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEGGG", "EEEEEEEEEEEEEEEE", "EEGGGEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEGGGEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEGGGEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEGGGE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE"], "deep1": ["EEEEEEEEEEEEEEEE", "GGEEEEEEEEEEEEEG", "EEEEEEEEEEEEEEEE", "EEEEGGGEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEGGGEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEGGGEEEEEEE", "EEEEEEEEEEEEEEEE", "GEEEEEEEEEEEEEGG", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE"]}};
 /* =========================================================
    퀘스트 데이터 — 8단원 × 3단계(기본/응용/도전)
@@ -829,11 +846,21 @@ const stageIndex = (ch, lv) => ch * 3 + lv;
 
 /* ================= 진행 상황 저장 ================= */
 const SAVE_KEY = 'pyquest-ocean-v1';
+const PROFILE_KEY = 'pyquest-ocean-student';
+const POINTS = [10, 20, 30];
+let student = null;
+try { student = JSON.parse(localStorage.getItem(PROFILE_KEY)); } catch (e) {}
+const progKey = () => SAVE_KEY + (student ? ':' + student.sid : '');
+const freshProg = () => ({ cleared: {}, name: '', code: {}, unlockAll: false, tries: {}, pending: [] });
 function loadProg() {
-  try { const p = JSON.parse(localStorage.getItem(SAVE_KEY)); if (p && p.cleared && !Array.isArray(p.cleared)) return p; } catch (e) {}
-  return { cleared: {}, name: '', code: {}, unlockAll: false };
+  try {
+    const p = JSON.parse(localStorage.getItem(progKey()));
+    if (p && p.cleared && !Array.isArray(p.cleared)) return Object.assign(freshProg(), p);
+  } catch (e) {}
+  return freshProg();
 }
-function saveProg() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(prog)); } catch (e) {} }
+function saveProg() { try { localStorage.setItem(progKey(), JSON.stringify(prog)); } catch (e) {} }
+const myScore = () => STAGES.reduce((a, s, i) => a + (prog.cleared[i] ? POINTS[s.lv] : 0), 0);
 let prog = loadProg();
 function isUnlocked(i) {
   const s = STAGES[i];
@@ -1349,6 +1376,7 @@ async function runCode() {
   if (!pyRun || running) return;
   running = true; setRunBtn(); closeModal();
   const s = STAGES[cur], code = ta.value;
+  prog.tries[cur] = (prog.tries[cur] || 0) + 1; saveProg();
   con.innerHTML = ''; setErrLine(0);
   lintBareCalls(code).forEach(w => logLine('warn', w));
   let lastResult = null;
@@ -1382,7 +1410,11 @@ async function runCode() {
   }
   // 클리어
   if (s.onClear) s.onClear(lastResult);
-  prog.cleared[cur] = true; prog.code[cur] = code; saveProg(); renderChips();
+  const firstClear = !prog.cleared[cur];
+  prog.cleared[cur] = true; prog.code[cur] = code;
+  if (firstClear && !prog.pending.includes(s.id)) prog.pending.push(s.id);
+  saveProg(); renderChips(); renderWho();
+  syncScores();
   if (s.owlReply) owlBubble = { text: s.owlReply, until: performance.now() + 2500 };
   logLine('ok', '클리어!');
   sfx.win();
@@ -1399,7 +1431,8 @@ async function runCode() {
 
 /* ================= 모달 ================= */
 const modal = $('#modal'), mbox = $('#mbox');
-function closeModal() { modal.classList.remove('show'); }
+let modalLocked = false;
+function closeModal(force) { if (modalLocked && !force) return; modalLocked = false; modal.classList.remove('show'); }
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 function showClear() {
@@ -1409,7 +1442,7 @@ function showClear() {
     const nm = prog.name || '탐험가';
     const n = Object.keys(prog.cleared).filter(k => prog.cleared[k]).length;
     mbox.innerHTML = `<canvas class="px" id="mIcon" width="16" height="16"></canvas><h3>모험 완주!</h3>
-      <p><b>${esc(nm)}</b>, 마지막 도전 퀘스트까지 깼어요. (퀘스트 ${n} / ${STAGES.length})</p>
+      <p><b>${esc(nm)}</b>, 마지막 도전 퀘스트까지 깼어요.<br>퀘스트 ${n} / ${STAGES.length} · 총 <b>${myScore()}점</b></p>
       <ol><li>print 출력</li><li>변수</li><li>명령 순서</li><li>for 반복</li><li>방향 바꾸기</li><li>if / elif / else 조건</li><li>while 반복</li><li>def 함수 만들기</li></ol>
       <div class="bar"><button class="pbtn" id="mClose">닫기</button><button class="pbtn run" id="mGo">1단원으로</button></div>`;
     paintTo($('#mIcon'), 'dino0');
@@ -1422,7 +1455,7 @@ function showClear() {
     const primary = nextLv !== null ? [`다음: ${LV_NAME[s.lv + 1]} ${LV_STAR[s.lv + 1]}`, nextLv] : [`${s.ch + 2}단원으로`, nextCh];
     const secondary = nextLv !== null && nextCh !== null ? [`${s.ch + 2}단원으로`, nextCh] : ['여기 더 있기', null];
     mbox.innerHTML = `<canvas class="px" id="mIcon" width="16" height="16"></canvas><h3>클리어!</h3>
-      <p>${esc(s.tag)} <b>${LV_NAME[s.lv]}</b> 퀘스트를 깼어요.${basicDone}</p>
+      <p>${esc(s.tag)} <b>${LV_NAME[s.lv]}</b> 퀘스트를 깼어요. <b>+${POINTS[s.lv]}점</b> (총 ${myScore()}점)${basicDone}</p>
       <div class="bar"><button class="pbtn" id="mSec">${esc(secondary[0])}</button><button class="pbtn run" id="mGo">${esc(primary[0])}</button></div>`;
     paintTo($('#mIcon'), 'pearl');
     $('#mGo').onclick = () => { closeModal(); goStage(primary[1]); };
@@ -1452,12 +1485,90 @@ $('#wipeBtn').onclick = () => {
   const b = $('#wipeBtn');
   if (!wipeArmed) { b.textContent = '한 번 더 누르면 모두 지워져요'; wipeArmed = setTimeout(() => { wipeArmed = null; b.textContent = '진행 상황 초기화'; }, 3000); return; }
   clearTimeout(wipeArmed); wipeArmed = null; b.textContent = '진행 상황 초기화';
-  prog = { cleared: {}, name: '', code: {}, unlockAll: false }; saveProg(); goStage(0);
+  prog = freshProg(); saveProg(); renderWho(); goStage(0);
 };
 
 
 
 
+
+/* ================= 학생 등록 · 점수 전송 ================= */
+function renderWho() {
+  const el = $('#who');
+  if (!student) { el.textContent = '코드로 공룡을 움직이는 파이썬 바다 모험'; return; }
+  el.innerHTML = `<span class="id">${esc(student.sid)} ${esc(student.name)}</span><span class="sc">${myScore()}점</span><button id="whoBtn">학생 바꾸기</button>`;
+  $('#whoBtn').onclick = () => { if (!running) showLogin(true); };
+}
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
+async function fetchProgress(sid, name) {
+  const url = `${SCRIPT_URL}?action=progress&sid=${encodeURIComponent(sid)}&name=${encodeURIComponent(name)}`;
+  const res = await withTimeout(fetch(url), 10000);
+  return res.json();
+}
+function mergeServer(cleared) {
+  (cleared || []).forEach(id => { const i = STAGES.findIndex(s => s.id === id); if (i >= 0) prog.cleared[i] = true; });
+}
+let syncing = false;
+async function syncScores() {
+  if (!SCRIPT_URL || !student || syncing || !prog.pending.length) return;
+  syncing = true;
+  try {
+    while (prog.pending.length) {
+      const id = prog.pending[0], i = STAGES.findIndex(s => s.id === id);
+      const body = { action: 'clear', sid: student.sid, name: student.name, quest: id,
+                     tries: prog.tries[i] || 0, code: (prog.code[i] || '').slice(0, 3000) };
+      let r;
+      try { r = await (await withTimeout(fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) }), 12000)).json(); }
+      catch (e) { logLine('warn', '점수를 보내지 못했어요. 인터넷이 연결되면 다음에 자동으로 다시 보내요.'); break; }
+      if (!r.ok) { logLine('warn', '점수 저장 실패: ' + r.error); break; }
+      prog.pending.shift(); saveProg();
+      if (r.first) logLine('ok', `점수 저장 완료 (${id} +${r.points}점, 선생님 기록 총 ${r.total}점)`);
+    }
+  } finally { syncing = false; }
+}
+function showLogin(canCancel) {
+  modalLocked = !canCancel;
+  mbox.innerHTML = `<canvas class="px" id="mIcon" width="16" height="16"></canvas><h3 style="font-size:30px">탐험가 등록</h3>
+    <p class="small">${SCRIPT_URL ? '학번과 이름을 입력하면 클리어 점수가 선생님께 전달돼요.' : '학번과 이름을 입력해요. (점수 서버가 설정되지 않아 이 컴퓨터에만 저장돼요)'}</p>
+    <form class="login" id="loginForm" autocomplete="off">
+      <label>학번<input id="inSid" inputmode="numeric" maxlength="6" placeholder="예: 20315" value="${student ? esc(student.sid) : ''}"></label>
+      <label>이름<input id="inName" maxlength="20" placeholder="예: 김파이" value="${student ? esc(student.name) : ''}"></label>
+      <p class="formerr" id="loginErr" role="alert"></p>
+      <div class="bar">${canCancel ? '<button type="button" class="pbtn" id="mCancel">취소</button>' : ''}<button type="submit" class="pbtn run" id="mGo">시작하기</button></div>
+    </form>`;
+  paintTo($('#mIcon'), 'dino0');
+  if (canCancel) $('#mCancel').onclick = () => closeModal(true);
+  $('#loginForm').onsubmit = async e => {
+    e.preventDefault();
+    const sid = $('#inSid').value.trim(), name = $('#inName').value.trim(), err = $('#loginErr');
+    if (!/^\d{4,6}$/.test(sid)) { err.textContent = '학번은 숫자 4~6자리로 입력해요.'; return; }
+    if (!name) { err.textContent = '이름을 입력해요.'; return; }
+    const btn = $('#mGo'); btn.disabled = true; btn.textContent = '확인 중…'; err.textContent = '';
+    let server = null, offline = false;
+    if (SCRIPT_URL) {
+      try { server = await fetchProgress(sid, name); }
+      catch (x) { offline = true; }
+      if (server && !server.ok) { err.textContent = server.error; btn.disabled = false; btn.textContent = '시작하기'; return; }
+    }
+    student = { sid, name };
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(student)); } catch (x) {}
+    prog = loadProg();
+    if (server) mergeServer(server.cleared);
+    if (!prog.name) prog.name = name.slice(0, 12);
+    saveProg();
+    closeModal(true);
+    renderWho();
+    const start = STAGES.findIndex((s, i) => !prog.cleared[i] && isUnlocked(i));
+    goStage(start < 0 ? 0 : start);
+    if (offline) logLine('warn', '점수 서버에 연결하지 못했어요. 일단 이 컴퓨터에 저장하고, 연결되면 다시 보내요.');
+    else if (server && server.cleared && server.cleared.length) logLine('ok', `지난 기록을 불러왔어요. (${server.cleared.length}개 퀘스트, ${server.total}점)`);
+    syncScores();
+  };
+  modal.classList.add('show');
+  setTimeout(() => $(student ? '#mGo' : '#inSid').focus(), 50);
+}
 
 /* ================= 시작 ================= */
 paintTo($('#logoDino'), 'dino0');
@@ -1469,6 +1580,14 @@ if (prog.unlockAll) $('#unlockBtn').textContent = '퀘스트 잠금 다시 켜�
   goStage(start < 0 ? 0 : start);
 }
 setRunBtn();
+renderWho();
+if (!student) showLogin(false);
+else if (SCRIPT_URL) {
+  fetchProgress(student.sid, student.name).then(r => {
+    if (r.ok) { const before = Object.keys(prog.cleared).length; mergeServer(r.cleared); saveProg(); renderWho();
+      if (Object.keys(prog.cleared).length !== before && !running) goStage(cur); }
+  }).catch(() => {}).finally(syncScores);
+}
 (document.fonts ? document.fonts.load('15px Galmuri11') : Promise.resolve()).catch(() => {}).finally(() => requestAnimationFrame(frame));
 (async () => {
   try {
