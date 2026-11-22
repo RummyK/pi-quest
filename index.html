@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>파이 탐험대 – 파이썬 기초 모험</title>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+  @font-face{font-family:'Galmuri11';src:url('fonts/Galmuri11.woff2') format('woff2');font-weight:400;font-display:swap}
+  @font-face{font-family:'Galmuri11';src:url('fonts/Galmuri11-Bold.woff2') format('woff2');font-weight:700;font-display:swap}
+  @font-face{font-family:'GalmuriMono11';src:url('fonts/GalmuriMono11.woff2') format('woff2');font-display:swap}
+  :root{
+    --night:#0c2a47; --win:#134a73; --edge:#071a2e; --frame:#f6ecd2; --frame-shade:#c9b98f;
+    --coin:#ffcc4d; --coin-shade:#d9961f; --leaf:#4fd1a5; --ember:#ff6f61; --sky:#7be7f0; --mute:#7fa6c9;
+    --deep:#0a2238; --line:#2a6a95;
+    --pix:'Galmuri11',sans-serif; --mono:'GalmuriMono11','Galmuri11',monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{background:var(--night)}
+  body{margin:0;color:var(--frame);font-family:var(--pix);font-size:15px;line-height:1.6;-webkit-font-smoothing:none}
+  button{font-family:inherit}
+  canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
+
+  /* ---------- 헤더 + 월드맵 ---------- */
+  header{max-width:1380px;margin:0 auto;padding:16px 22px 0;display:flex;align-items:flex-end;gap:32px;flex-wrap:wrap}
+  .logo{display:flex;align-items:center;gap:12px;padding-bottom:6px}
+  .logo canvas{width:52px;height:52px}
+  .logo h1{margin:0;font-size:28px;line-height:1.1;font-weight:700;color:var(--coin);text-shadow:3px 3px 0 var(--edge)}
+  .logo p{margin:2px 0 0;font-size:12px;color:var(--mute)}
+  .map{list-style:none;margin:0;padding:22px 0 4px;display:flex;flex:1;min-width:280px;overflow-x:auto}
+  .map li{position:relative;flex:1;min-width:72px;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .map li+li::before{content:'';position:absolute;top:15px;right:50%;width:100%;height:4px;z-index:0;
+    background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 10px)}
+  .map li.reached::before{background:repeating-linear-gradient(90deg,var(--coin) 0 6px,transparent 6px 10px)}
+  .node{position:relative;z-index:1;width:34px;height:34px;border:0;padding:0;background:var(--win);color:var(--frame);
+    font-weight:700;font-size:15px;box-shadow:0 0 0 3px var(--edge),inset 0 0 0 3px var(--frame);cursor:pointer}
+  .node.done{background:var(--leaf);color:var(--edge)}
+  .node.cur{background:var(--coin);color:var(--edge)}
+  .node.locked{background:var(--edge);color:var(--line);box-shadow:0 0 0 3px var(--edge),inset 0 0 0 3px var(--line);cursor:not-allowed}
+  .node.cur::after{content:'▼';position:absolute;top:-21px;left:50%;color:var(--coin);font-size:12px;animation:hop .7s steps(2) infinite}
+  @keyframes hop{0%{transform:translate(-50%,0)}100%{transform:translate(-50%,4px)}}
+  .pips{display:flex;gap:4px}
+  .pip{width:9px;height:9px;padding:0;border:0;background:var(--deep);box-shadow:0 0 0 2px var(--line);cursor:pointer}
+  .pip.done{background:var(--leaf);box-shadow:0 0 0 2px var(--edge)}
+  .pip.cur{background:var(--coin);box-shadow:0 0 0 2px var(--edge)}
+  .pip.locked{cursor:not-allowed;opacity:.5}
+  .map .lbl{font-size:11px;color:var(--mute);white-space:nowrap}
+  .map li.is-cur .lbl{color:var(--coin)}
+  .map li.is-done .lbl{color:var(--frame)}
+
+  /* ---------- 레이아웃 ---------- */
+  main{max-width:1380px;margin:0 auto;padding:18px 22px 20px;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(360px,1fr);gap:24px 30px;align-items:start}
+  @media (max-width:1020px){main{grid-template-columns:1fr}}
+
+  /* ---------- 게임 화면 ---------- */
+  .screen{position:relative;aspect-ratio:4/3;background:#1c6a96;margin:8px;box-shadow:0 0 0 4px var(--frame),0 0 0 8px var(--edge)}
+  .screen > canvas{position:absolute;inset:0;width:100%;height:100%}
+  .hud{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+  .pill{background:var(--edge);color:var(--frame);padding:2px 10px;font-size:13px;box-shadow:0 0 0 2px var(--frame)}
+  .pill b{color:var(--sky);font-weight:700}
+  .loading{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);background:var(--edge);color:var(--coin);
+    padding:8px 16px;font-size:14px;box-shadow:0 0 0 3px var(--frame);white-space:nowrap}
+  .loading.hide{display:none}
+
+  .dialog{position:absolute;left:14px;right:14px;bottom:14px;display:flex;gap:14px;align-items:flex-start;background:var(--win);
+    border:4px solid var(--frame);box-shadow:0 0 0 3px var(--edge),inset 0 0 0 3px var(--edge);padding:14px 18px 14px 14px;cursor:pointer;min-height:100px;user-select:none}
+  .portrait{flex:none;width:64px;height:64px;background:#f3d99c;box-shadow:0 0 0 3px var(--edge)}
+  .portrait canvas{width:64px;height:64px;display:block}
+  .dname{position:absolute;top:-17px;left:96px;background:var(--frame);color:var(--edge);font-weight:700;font-size:13px;padding:0 10px;box-shadow:0 0 0 3px var(--edge)}
+  .dtext{font-size:17px;line-height:1.65;padding-top:2px;min-height:56px}
+  .more{position:absolute;right:12px;bottom:4px;color:var(--coin);font-size:12px;animation:hop2 .7s steps(2) infinite}
+  .more.hide{display:none}
+  @keyframes hop2{100%{transform:translateY(4px)}}
+
+  /* ---------- 오른쪽 창들 ---------- */
+  .right{display:flex;flex-direction:column;gap:30px;padding-top:14px;min-width:0}
+  .win{position:relative;background:var(--win);border:4px solid var(--frame);box-shadow:0 0 0 3px var(--edge),inset 0 0 0 3px var(--edge);padding:22px 18px 16px;margin:0 3px}
+  .win > .tab{position:absolute;top:-16px;left:14px;background:var(--frame);color:var(--edge);font-weight:700;font-size:13px;padding:0 10px;box-shadow:0 0 0 3px var(--edge)}
+  .levels{display:flex;gap:10px;margin:0 0 14px;flex-wrap:wrap}
+  .lvbtn{font-weight:700;font-size:13px;border:0;padding:5px 10px;cursor:pointer;background:var(--deep);color:var(--mute);box-shadow:0 0 0 2px var(--line)}
+  .lvbtn .st{color:var(--coin);margin-left:4px;letter-spacing:-1px}
+  .lvbtn.done{color:var(--frame);box-shadow:0 0 0 2px var(--leaf)}
+  .lvbtn.done::before{content:'✓ ';color:var(--leaf)}
+  .lvbtn.cur{background:var(--coin);color:var(--edge);box-shadow:0 0 0 2px var(--edge)}
+  .lvbtn.cur .st{color:var(--edge)}
+  .lvbtn.cur.done::before{color:var(--edge)}
+  .lvbtn.locked{opacity:.45;cursor:not-allowed}
+  .lvbtn:focus-visible,.pip:focus-visible{outline:3px dashed var(--coin);outline-offset:4px}
+  .quest h2{margin:0 0 6px;font-size:23px;line-height:1.3;color:var(--coin);font-weight:700}
+  .goal{margin:0 0 14px;font-size:15px}
+  .note{background:var(--edge);padding:10px 14px;font-size:14px;line-height:1.75;color:#cfe6f5}
+  .note .h{display:block;color:var(--coin);font-size:12px}
+  .note b{color:var(--sky);font-weight:700}
+  .cmds{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .cmd{font:15px var(--mono);background:var(--edge);color:var(--coin);border:0;padding:5px 10px;cursor:pointer;box-shadow:inset 0 0 0 2px var(--line)}
+  .cmd:hover{box-shadow:inset 0 0 0 2px var(--coin)}
+  .cmd span{font-family:var(--pix);color:var(--mute);font-size:11px;margin-left:6px}
+
+  .win.code{padding:14px 0 0}
+  .editor{position:relative;display:flex;background:var(--edge);height:290px}
+  .gutter{width:44px;flex:none;color:var(--line);font:16px/26px var(--mono);padding:12px 0;overflow:hidden;user-select:none;text-align:right;background:var(--deep)}
+  .gutter div{padding-right:10px;height:26px}
+  .gutter div.act{color:var(--coin)}
+  .gutter div.err{color:var(--ember)}
+  .codewrap{position:relative;flex:1;min-width:0}
+  .hl{position:absolute;left:0;right:0;height:26px;background:rgba(255,204,77,.16);box-shadow:inset 4px 0 0 var(--coin);pointer-events:none;display:none}
+  .hl.err{background:rgba(255,107,91,.18);box-shadow:inset 4px 0 0 var(--ember)}
+  #code{position:absolute;inset:0;width:100%;height:100%;resize:none;border:0;outline:0;background:transparent;color:var(--frame);
+    font:16px/26px var(--mono);padding:12px 14px;white-space:pre;overflow:auto;tab-size:4;caret-color:var(--coin)}
+  #code::selection{background:var(--line)}
+
+  .bar{display:flex;gap:14px;flex-wrap:wrap;margin:0 3px}
+  .pbtn{font-weight:700;font-size:15px;color:var(--edge);background:var(--frame);border:0;padding:10px 15px;cursor:pointer;
+    box-shadow:0 0 0 3px var(--edge),inset -4px -4px 0 var(--frame-shade)}
+  .pbtn:active{box-shadow:0 0 0 3px var(--edge),inset 4px 4px 0 var(--frame-shade)}
+  .pbtn.run{background:var(--coin);flex:1;min-width:170px;font-size:19px;box-shadow:0 0 0 3px var(--edge),inset -4px -4px 0 var(--coin-shade)}
+  .pbtn.run:active{box-shadow:0 0 0 3px var(--edge),inset 4px 4px 0 var(--coin-shade)}
+  .pbtn.run:disabled{background:#3d6d93;color:#0f3355;box-shadow:0 0 0 3px var(--edge),inset -4px -4px 0 #2f5a7d;cursor:wait}
+  .pbtn .key{font-size:11px;font-weight:400;opacity:.7;margin-left:6px}
+  .pbtn:focus-visible,.node:focus-visible,.cmd:focus-visible,.dialog:focus-visible{outline:3px dashed var(--coin);outline-offset:6px}
+
+  .win.log{padding:20px 16px 12px}
+  .logbox{font:14px/1.75 var(--mono);min-height:96px;max-height:210px;overflow:auto}
+  .logbox div{white-space:pre-wrap;word-break:break-all}
+  .c-out{color:var(--frame)}
+  .c-out::before{content:'▶ ';color:var(--coin)}
+  .c-info{color:var(--mute)}
+  .c-warn{color:var(--coin)}
+  .c-ok{color:var(--leaf)}
+  .c-err{color:#ffc2ba;background:rgba(255,107,91,.12);box-shadow:inset 4px 0 0 var(--ember);padding:6px 12px;margin:6px 0}
+  .c-err b{color:var(--ember);font-weight:400}
+  .c-err .raw{color:#8fb0c9;font-size:12px}
+
+  footer{max-width:1380px;margin:0 auto;padding:4px 22px 26px;font-size:12px;color:var(--mute);display:flex;gap:18px;flex-wrap:wrap}
+  footer button{background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer;font-size:12px;padding:0}
+  footer button:hover{color:var(--frame)}
+
+  .modal{position:fixed;inset:0;background:rgba(7,26,46,.72);display:none;align-items:center;justify-content:center;z-index:30;padding:20px}
+  .modal.show{display:flex}
+  .mbox{background:var(--win);border:4px solid var(--frame);box-shadow:0 0 0 4px var(--edge),inset 0 0 0 3px var(--edge);padding:26px 30px 26px;text-align:center;max-width:460px;width:100%;animation:pop .4s steps(4)}
+  .mbox canvas{width:80px;height:80px}
+  .mbox h3{font-size:40px;line-height:1.2;color:var(--coin);margin:4px 0 8px;font-weight:700;text-shadow:4px 4px 0 var(--edge)}
+  .mbox p{margin:0 0 20px}
+  .mbox p b{color:var(--coin);font-weight:700}
+  .mbox ol{text-align:left;margin:0 auto 22px;padding-left:28px;max-width:280px;line-height:1.9;color:#cfe6f5}
+  .mbox .bar{justify-content:center}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <canvas class="px" id="logoDino" width="16" height="16"></canvas>
+    <div><h1>파이 탐험대</h1><p>코드로 공룡을 움직이는 파이썬 바다 모험</p></div>
+  </div>
+  <ol class="map" id="map" aria-label="단원 지도"></ol>
+</header>
+
+<main>
+  <section>
+    <div class="screen" id="screen">
+      <canvas class="px" id="game"></canvas>
+      <div class="hud">
+        <span class="pill" id="hudGem"></span>
+        <span class="pill" id="hudTest" style="display:none"></span>
+      </div>
+      <div class="loading" id="loading">파이썬 엔진을 불러오는 중… (처음엔 10초쯤 걸려요)</div>
+      <div class="dialog" id="dialog" tabindex="0" aria-live="polite">
+        <span class="dname">거북 쌤</span>
+        <div class="portrait"><canvas class="px" id="owlFace" width="16" height="16"></canvas></div>
+        <div class="dtext" id="dtext"></div>
+        <span class="more hide" id="more">▼</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="right">
+    <div class="win quest">
+      <span class="tab" id="sTab">퀘스트</span>
+      <div class="levels" id="sLevels" role="tablist" aria-label="난이도"></div>
+      <h2 id="sTitle"></h2>
+      <p class="goal" id="sGoal"></p>
+      <div class="note"><span class="h">거북 쌤 노트</span><span id="sConcept"></span></div>
+      <div class="cmds" id="sCmds"></div>
+    </div>
+
+    <div class="win code">
+      <span class="tab">코드</span>
+      <div class="editor">
+        <div class="gutter" id="gutter"></div>
+        <div class="codewrap">
+          <div class="hl" id="hl"></div>
+          <textarea id="code" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off" aria-label="파이썬 코드"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="bar">
+      <button class="pbtn run" id="runBtn" disabled>준비 중…</button>
+      <button class="pbtn" id="hintBtn">힌트</button>
+      <button class="pbtn" id="speedBtn">속도 1x</button>
+      <button class="pbtn" id="resetBtn">처음 코드로</button>
+    </div>
+
+    <div class="win log">
+      <span class="tab">실행 기록</span>
+      <div class="logbox" id="console"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>진행 상황은 이 브라우저에 저장돼요.</span>
+  <button id="muteBtn">소리 끄기</button>
+  <button id="unlockBtn">전체 퀘스트 열기 (교사용)</button>
+  <button id="wipeBtn">진행 상황 초기화</button>
+  <span>폰트: 갈무리(Galmuri, OFL)</span>
+</footer>
+
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+
+<script type="text/python" id="runner">
+import sys, json, builtins
+
+USER_FILE = "<내 코드>"
+
+class _Stop(Exception):
+    pass
+
+def _user_line_from_tb(e):
+    ln = 0
+    tb = e.__traceback__
+    while tb is not None:
+        if tb.tb_frame.f_code.co_filename == USER_FILE:
+            ln = tb.tb_lineno
+        tb = tb.tb_next
+    return ln
+
+def _cur_line():
+    f = sys._getframe(1)
+    while f is not None:
+        if f.f_code.co_filename == USER_FILE:
+            return f.f_lineno
+        f = f.f_back
+    return 0
+
+def _run(code, cfg_json):
+    cfg = json.loads(cfg_json)
+    grid = [list(r) for r in cfg["map"]]
+    H = len(grid)
+    W = len(grid[0])
+    st = {"x": 0, "y": 0, "d": cfg.get("dir", 0), "steps": 0, "checks": 0}
+    for yy, row in enumerate(grid):
+        for xx, c in enumerate(row):
+            if c == "S":
+                st["x"], st["y"] = xx, yy
+                grid[yy][xx] = "."
+    DX = [1, 0, -1, 0]
+    DY = [0, -1, 0, 1]
+    log = []
+    out = []
+
+    def cell(x, y):
+        if 0 <= y < H and 0 <= x < W:
+            return grid[y][x]
+        return "#"
+
+    def blocked(c):
+        return c in "#O"
+
+    def act(a, **kw):
+        st["steps"] += 1
+        if st["steps"] > 300:
+            raise _Stop("명령을 너무 많이 실행했어요! 반복이 끝나지 않는 건 아닐까요?")
+        e = {"a": a, "x": st["x"], "y": st["y"], "d": st["d"], "line": _cur_line()}
+        e.update(kw)
+        log.append(e)
+
+    def ahead(n=1):
+        return st["x"] + DX[st["d"]] * n, st["y"] + DY[st["d"]] * n
+
+    def check_limit():
+        st["checks"] += 1
+        if st["checks"] > 1000:
+            raise _Stop("반복이 끝나지 않아요! 반복 안에서 move()를 했는지 확인해 보세요.")
+
+    def move():
+        nx, ny = ahead()
+        c = cell(nx, ny)
+        if blocked(c):
+            act("bump")
+            raise _Stop("앞은 바다라서 갈 수 없어요! 방향을 확인해 보세요.")
+        st["x"], st["y"] = nx, ny
+        if c == "T":
+            act("fall")
+            raise _Stop("앗, 따가워! 성게 함정을 밟았어요. 함정은 jump()로 뛰어넘어야 해요.")
+        act("move")
+
+    def jump():
+        mx, my = ahead(1)
+        lx, ly = ahead(2)
+        if blocked(cell(mx, my)) or blocked(cell(lx, ly)):
+            act("bump")
+            raise _Stop("점프하면 바다에 빠져요! 점프할 공간이 없어요.")
+        st["x"], st["y"] = lx, ly
+        if cell(lx, ly) == "T":
+            act("fall")
+            raise _Stop("앗, 따가워! 성게 위로 착지했어요.")
+        act("jump")
+
+    def turn_left():
+        st["d"] = (st["d"] + 1) % 4
+        act("turn")
+
+    def turn_right():
+        st["d"] = (st["d"] + 3) % 4
+        act("turn")
+
+    def pick():
+        if cell(st["x"], st["y"]) == "*":
+            grid[st["y"]][st["x"]] = "."
+            act("pick")
+        else:
+            act("nopick")
+            raise _Stop("여기에는 진주가 없어요. 진주가 있는 칸에서 pick() 해야 해요.")
+
+    def look():
+        check_limit()
+        c = cell(*ahead())
+        return {"T": "함정", "*": "진주", "#": "바다", "O": "거북 쌤"}.get(c, "길")
+
+    def is_pearl():
+        check_limit()
+        return cell(st["x"], st["y"]) == "*"
+
+    def front_is_clear():
+        check_limit()
+        return not blocked(cell(*ahead()))
+
+    def _print(*args, sep=" ", end="\n", **kw):
+        s = str(sep).join(str(a) for a in args)
+        out.append(s)
+        act("say", text=s)
+
+    def _input(*a, **k):
+        raise _Stop("이 게임에서는 input()을 쓰지 않아요. 값을 직접 변수에 넣어 보세요.")
+
+    api = dict(move=move, jump=jump, turn_left=turn_left, turn_right=turn_right,
+               pick=pick, look=look, front_is_clear=front_is_clear, is_pearl=is_pearl)
+    g = {"__name__": "__main__", "__builtins__": builtins, "print": _print, "input": _input}
+    g.update(api)
+
+    counter = [0]
+    def tracer(frame, event, arg):
+        if frame.f_code.co_filename == USER_FILE:
+            if event == "line":
+                counter[0] += 1
+                if counter[0] > 50000:
+                    raise _Stop("코드가 끝나지 않아요! 무한 반복이 있는지 확인해 보세요.")
+            return tracer
+        return None
+
+    err = None
+    compiled = None
+    try:
+        compiled = compile(code, USER_FILE, "exec")
+    except SyntaxError as e:
+        err = {"kind": "py", "type": type(e).__name__, "msg": str(e.msg), "line": e.lineno or 0}
+    if compiled is not None:
+        sys.settrace(tracer)
+        try:
+            exec(compiled, g)
+        except _Stop as e:
+            err = {"kind": "stop", "type": "Stop", "msg": str(e), "line": _user_line_from_tb(e)}
+        except Exception as e:
+            err = {"kind": "py", "type": type(e).__name__, "msg": str(e), "line": _user_line_from_tb(e)}
+        finally:
+            sys.settrace(None)
+
+    vs = {}
+    for k, v in g.items():
+        if k.startswith("_") or k in api or k in ("print", "input"):
+            continue
+        if isinstance(v, (str, int, float, bool)):
+            vs[k] = v
+        elif isinstance(v, (list, tuple, dict)):
+            vs[k] = repr(v)
+    gems_left = sum(row.count("*") for row in grid)
+    return json.dumps({"log": log, "out": out, "err": err, "x": st["x"], "y": st["y"],
+                       "d": st["d"], "gemsLeft": gems_left, "vars": vs}, ensure_ascii=False)
+</script>
+
+<script>
+const SPR = {"pal": {"k": "#071a2e", "g": "#6cc24a", "d": "#3f8f3a", "b": "#e4f5b0", "w": "#ffffff", "o": "#ff9b3d", "p": "#ff8fa3", "n": "#9a6338", "m": "#6e4426", "c": "#f1d6a8", "y": "#ffcc4d", "t": "#3d7a3a", "T": "#2c5e30", "l": "#5aa64a", "L": "#4b9440", "q": "#5ad1e6", "Q": "#b9f3fb", "r": "#2a8fae", "s": "#8d93a8", "S": "#c9cdd8", "h": "#3a2a22", "H": "#5a4030", "e": "#7fd65f", "f": "#ffe680", "F": "#ff9fc0", "x": "#262b5c", "a": "#8fd18a", "A": "#f3d99c", "B": "#e2c07e", "C": "#3fb8cc", "D": "#9ae8f0", "E": "#1c6a96", "G": "#2c86b4", "R": "#e57aa3", "W": "#fdfaf2", "Z": "#cfc8e6", "U": "#5b3a8c", "V": "#8a63c9", "X": "#ff8a5c", "K": "#071a2e"}, "sp": {"dino0": ["................", ".........k......", "........kokkkk..", "........kggwwgk.", ".......kgggwkgk.", ".....k.kgggwkggk", "....kokogggggpgk", "...kkgggggggddk.", "..koggggggggkk..", "..kgggggbbggk...", ".kgggggbbbbgk...", "kdgggggbbbbdk...", ".kdddggbbbdk....", "..kkkdddddk.....", "....kdkkkdk.....", ".....k...k......"], "dino1": ["................", ".........k......", "........kokkkk..", "........kggwwgk.", ".......kgggwkgk.", ".....k.kgggwkggk", "....kokogggggpgk", "...kkgggggggddk.", "..koggggggggkk..", "..kgggggbbggk...", ".kgggggbbbbgk...", "kdgggggbbbbdk...", ".kddgggbbbgk....", "..kkdddddddk....", "...kdkkkkkdk....", "....k.....k....."], "turtle": ["................", ".......kk.......", "......kaak......", ".....kaaaak.....", "....kywyywyk....", "....kakaakak....", "....kaammaak....", "..kkknaaaankkk..", ".kannnmmnmnnnak.", "kaannmnmmnmnnaak", "kannnmmmmmmnnnak", ".kknnmmnmmmnnkk.", "..knnnnmmnnnnk..", "...knnnnnnnnk...", "...kaannnnaak...", "....kkkkkkkk...."], "pearl": ["................", "......kkkk......", "....kkFFFFkk....", "...kRFFRFFRFk...", "..kFFFFFFFFFFk..", "...kkkkkkkkkk...", ".....kwWWWk.....", ".....kwWWWk.....", "..kkkkWWWZkkkk..", ".kRRRRWWWZRRRRk.", ".kFFFFFFFFFFFFk.", "..kFRFFRFFRFFk..", "...kRFFRFFRFk...", "....kkFFFFkk....", "......kkkk......", "................"], "urchin": ["................", "................", "................", ".......k........", ".....kkUk.k.....", "....kUkUkkUk....", "...kkUkkkkUkk...", "..kUUUUUUUUUUk..", "..kkkUVVUUUkkk..", ".kUUUUUUUUUUUUk.", "..kkkUUUUUUkkk..", "..kUUUUUUUUUUk..", "...kkUkkkkUkk...", "....kUkkUkUk....", ".....k.kUkk.....", "........k......."], "sand0": ["AAAAAAAAAAAAAABA", "AAAABAAAAAAAAABA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAABAAAAA", "AAAAAABAAAAAAAAA", "ABAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAABAAAA", "AAAAAAABAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAABAAAAAAAAA", "AAAAAAAAAAAAAAAA"], "sand1": ["AAAAAAAAAAAAAAAA", "AAAAAAAABAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAABFAAAAAAAAAA", "AAAAFRFBAABAAAAA", "AAAAAAAAAAAAAAAA", "BAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAABAAA", "AAAAAAAAAAAABAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAABAAAAAAA", "AAAAAAAAAAAAAAAA", "BAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA"], "sand2": ["AAABAAAAAAAAAAAA", "AAAAAAAAAAAAABAA", "BAABAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAABAAAAAAAA", "AAAAAAAAAAAAAAAA", "BAAAAAAAAAAAAAAA", "AAAAAABABAAAABAA", "AAAAAAAAAAXAAAAA", "AAAAAAAAAAXAAAAA", "AAAAAAAAXXXXXAAA", "AAAAAAAAAAXAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA"], "sand3": ["AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "ABAAAAAAAAABAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAABAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "ABAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAA", "AAAAAsAAAAAAAAAA", "AAABsSAAAAAAAAAA", "BAAAAAAAAAABAAAA", "AAAABAAAAAAAAAAA", "AAAAAAAAAAAAAABA"], "shallow0": ["CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCDDD", "CCCCCCCCCCCCCCCC", "CCDDDCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCDDDCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCDDDCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCDDDC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC"], "shallow1": ["CCCCCCCCCCCCCCCC", "DDCCCCCCCCCCCCCD", "CCCCCCCCCCCCCCCC", "CCCCDDDCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCDDDCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC", "CCCCCCDDDCCCCCCC", "CCCCCCCCCCCCCCCC", "DCCCCCCCCCCCCCDD", "CCCCCCCCCCCCCCCC", "CCCCCCCCCCCCCCCC"], "deep0": ["EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEGGG", "EEEEEEEEEEEEEEEE", "EEGGGEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEGGGEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEGGGEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEGGGE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE"], "deep1": ["EEEEEEEEEEEEEEEE", "GGEEEEEEEEEEEEEG", "EEEEEEEEEEEEEEEE", "EEEEGGGEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEGGGEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE", "EEEEEEGGGEEEEEEE", "EEEEEEEEEEEEEEEE", "GEEEEEEEEEEEEEGG", "EEEEEEEEEEEEEEEE", "EEEEEEEEEEEEEEEE"]}};
+/* =========================================================
+   퀘스트 데이터 — 8단원 × 3단계(기본/응용/도전)
+   맵 기호: # 바다  . 모래  S 시작  * 진주  T 성게 함정  O 거북 쌤
+   ========================================================= */
+const stripComments = c => c.replace(/#.*$/gm, '');
+const has = (code, kw) => new RegExp('\\b' + kw + '\\b').test(stripComments(code));
+const codeLines = code => stripComments(code).split('\n').filter(l => l.trim()).length;
+const gemsCheck = r => r.gemsLeft === 0 ? null : '아직 진주를 다 줍지 못했어요. 진주가 있는 칸에서 pick() 했나요?';
+const TURTLE_MAP = ['######', '#S..O#', '######'];
+const LV_NAME = ['기본', '응용', '도전'];
+const LV_STAR = ['★', '★★', '★★★'];
+
+const CH = [
+  /* ---------------- 1. print ---------------- */
+  {
+    name: 'print 출력',
+    concept: 'print()는 괄호 안의 내용을 화면에 보여 줘요. 글자는 <b>"따옴표"</b>로 감싸야 해요. 따옴표로 감싼 글자를 <b>문자열</b>이라고 불러요.',
+    cmds: [['print("안녕하세요")', '말하기']],
+    levels: [
+      {
+        title: '첫 인사',
+        intro: ['어서 와! 나는 이 바다의 코딩 선생님, 거북 쌤이야.',
+                "이 아기 공룡은 '파이'. 네가 쓴 파이썬 코드대로 움직인단다.",
+                '먼저 인사부터 해 볼까? print() 괄호 안에 하고 싶은 말을 따옴표로 감싸서 써 봐!'],
+        goal: '거북 쌤에게 "안녕"이 들어간 인사말을 print() 해 보세요.',
+        starter: '# 거북 쌤에게 인사해 보세요\nprint("")\n',
+        hint: 'print("안녕하세요!") 처럼 따옴표 안에 인사말을 써 보세요.',
+        success: () => '좋아! 방금 쓴 print()가 파이썬의 첫걸음이야.',
+        owlReply: '반가워, 파이!',
+        tests: [{ map: TURTLE_MAP }],
+        check: r => r.out.some(s => s.includes('안녕')) ? null : '"안녕"이 들어간 말을 print() 해야 해요.'
+      },
+      {
+        title: '세 줄 자기소개',
+        intro: ['print()는 여러 번 쓸 수 있어. 위에서부터 한 줄씩 차례로 출력돼.',
+                '이번엔 너를 소개해 줘. 세 줄로!'],
+        goal: 'print()를 3번 써서 나를 소개하는 말을 세 줄 출력해 보세요.',
+        starter: '# print()를 세 번 써서 나를 소개해요\nprint("안녕하세요!")\n',
+        hint: 'print("좋아하는 것: 바다") 처럼 한 줄씩 추가해서 print()가 3개가 되게 해 보세요.',
+        success: () => '멋진 소개야! 코드는 위에서 아래로 한 줄씩 실행된단다.',
+        owlReply: '잘 들었어!',
+        tests: [{ map: TURTLE_MAP }],
+        check: r => {
+          const n = r.out.filter(s => s.trim()).length;
+          return n >= 3 ? null : `내용이 있는 줄이 3줄 출력되어야 해요. (지금 ${n}줄)`;
+        }
+      },
+      {
+        title: '거북 쌤의 계산 문제',
+        intro: ['문제 하나 낼게. 진주가 한 상자에 12개씩, 8상자 있으면 모두 몇 개일까?',
+                '파이썬은 계산기처럼 쓸 수 있어. 곱하기는 *, 나누기는 / 야.',
+                '답을 직접 쓰지 말고, 계산식을 print() 해서 파이썬이 계산하게 해 봐!'],
+        goal: '12 × 8 의 답을 계산식으로 print() 해 보세요. 96을 직접 쓰면 안 돼요.',
+        concept: '숫자와 계산식은 따옴표 없이 써요. <b>print(3 + 4)</b> 는 7을 출력하지만, <b>print("3 + 4")</b> 는 글자 3 + 4를 그대로 출력해요. 곱하기는 <b>*</b>, 나누기는 <b>/</b>.',
+        cmds: [['print(3 + 4)', '계산해서 출력'], ['*', '곱하기'], ['/', '나누기']],
+        starter: '# 12 × 8 을 파이썬에게 계산시켜요\nprint()\n',
+        hint: 'print(12 * 8) 처럼 괄호 안에 계산식을 따옴표 없이 써 보세요.',
+        success: () => '정답! 파이썬은 엄청 빠른 계산기이기도 해.',
+        owlReply: '정답이야!',
+        tests: [{ map: TURTLE_MAP }],
+        check: (r, code) => {
+          if (/\b96\b/.test(stripComments(code))) return '96을 직접 쓰지 말고 12 * 8 같은 계산식으로 써 보세요!';
+          return r.out.some(s => /\b96\b/.test(s)) ? null : '출력에 96이 나와야 해요. 계산식을 따옴표 안에 넣으면 계산되지 않아요!';
+        }
+      }
+    ]
+  },
+  /* ---------------- 2. 변수 ---------------- */
+  {
+    name: '변수',
+    concept: '<b>변수 = 값</b> 을 쓰면 오른쪽 값이 왼쪽 이름의 상자에 저장돼요. 문자열끼리는 <b>+</b> 로 이어 붙일 수 있어요.',
+    cmds: [['name = "파이"', '변수에 저장'], ['print(name)', '변수 출력']],
+    levels: [
+      {
+        title: '이름표 만들기',
+        intro: ['파이가 너랑 같이 모험하고 싶대. 그런데 네 이름을 어떻게 기억하지?',
+                '이럴 때 쓰는 게 "변수"야. 값을 담아 두는, 이름 붙은 상자지.',
+                'name 이라는 상자에 네 이름을 넣어 줘!'],
+        goal: '변수 name에 내 이름(또는 별명)을 저장하고, print()로 출력해 보세요.',
+        starter: '# 변수 name에 내 이름을 저장해요\nname = "여기에 이름"\nprint(name + ", 모험을 시작합니다!")\n',
+        hint: 'name = "김파이" 처럼 따옴표 안의 글자를 내 이름으로 바꿔 보세요.',
+        success: n => `반가워, ${n}! 파이 머리 위에 네 이름표를 붙여 줬어.`,
+        owlReply: '좋은 이름이네!',
+        tests: [{ map: TURTLE_MAP }],
+        check: r => {
+          const n = r.vars.name;
+          if (typeof n !== 'string' || !n.trim()) return '변수 name에 문자열(따옴표로 감싼 글자)을 저장해야 해요.';
+          if (n === '여기에 이름') return '"여기에 이름"을 내 이름으로 바꿔 주세요!';
+          if (!r.out.some(s => s.includes(n))) return 'print()로 name을 출력해 주세요.';
+          return null;
+        },
+        onClear: r => { prog.name = String(r.vars.name).trim().slice(0, 12); }
+      },
+      {
+        title: '진주 세기',
+        intro: ['변수에는 숫자도 넣을 수 있어.',
+                '파이가 진주 3개, 조개 5개를 모았대. 변수끼리 더해서 합계를 구해 봐!'],
+        goal: 'pearls와 shells를 더한 값을 변수 total에 저장하고 출력하세요.',
+        concept: '변수끼리 계산할 수 있어요. <b>total = a + b</b> 는 a와 b를 더한 값을 total에 저장해요. 숫자 변수에는 따옴표를 쓰지 않아요.',
+        cmds: [['total = pearls + shells', '변수끼리 더하기'], ['print(total)', '출력']],
+        starter: 'pearls = 3\nshells = 5\ntotal = 0      # 여기를 고쳐요\nprint(total)\n',
+        hint: 'total = pearls + shells 로 바꿔 보세요. 숫자 8을 직접 쓰면 안 돼요!',
+        success: () => '맞아! 변수를 쓰면 값이 바뀌어도 계산식은 그대로 쓸 수 있어.',
+        owlReply: '8개 맞아!',
+        tests: [{ map: TURTLE_MAP }],
+        check: (r, code) => {
+          if (r.vars.total !== 8) return 'total에 8이 저장되어야 해요.';
+          if (!/total\s*=\s*(pearls\s*\+\s*shells|shells\s*\+\s*pearls)/.test(stripComments(code))) return '숫자를 직접 쓰지 말고 total = pearls + shells 처럼 변수로 계산해요.';
+          return r.out.some(s => s.includes('8')) ? null : 'print(total)로 결과를 출력해 주세요.';
+        }
+      },
+      {
+        title: '점수 올리기',
+        intro: ['변수 값은 바꿀 수 있어. score = score + 10 은 "지금 점수에 10을 더해서 다시 저장해"라는 뜻이야.',
+                '진주를 찾을 때마다 10점! 점수를 3번 올려 봐.'],
+        goal: 'score를 0에서 시작해서 score = score + 10 으로 3번 올리고, 마지막 점수를 출력하세요.',
+        concept: '<b>=</b> 는 "같다"가 아니라 "오른쪽 값을 왼쪽에 저장해"라는 뜻이에요. 그래서 <b>score = score + 10</b> 이 가능해요. 줄여서 <b>score += 10</b> 이라고도 써요.',
+        cmds: [['score = score + 10', '10점 더하기'], ['print(score)', '출력']],
+        starter: 'score = 0\n# 진주를 찾을 때마다 10점!\n\nprint(score)\n',
+        hint: 'score = score + 10 을 3줄 쓰고 마지막에 print(score).',
+        success: () => '30점! 변수는 계속 바뀌는 값을 기억할 때 정말 유용해.',
+        owlReply: '30점 달성!',
+        tests: [{ map: TURTLE_MAP }],
+        check: (r, code) => {
+          if (r.vars.score !== 30) return `score가 30이 되어야 해요. (지금 ${r.vars.score ?? '없음'})`;
+          if (!/score\s*(=\s*score\s*\+|\+=)/.test(stripComments(code))) return '30을 직접 넣지 말고 score = score + 10 으로 올려요.';
+          return r.out.some(s => s.includes('30')) ? null : 'print(score)로 결과를 출력해 주세요.';
+        }
+      }
+    ]
+  },
+  /* ---------------- 3. 명령 순서 ---------------- */
+  {
+    name: '명령 순서',
+    concept: '프로그램은 <b>위에서 아래로 한 줄씩</b> 순서대로 실행돼요. 명령(함수) 이름 뒤에는 꼭 괄호 <b>()</b>를 붙여요.',
+    cmds: [['move()', '앞으로 한 칸'], ['pick()', '진주 줍기']],
+    levels: [
+      {
+        title: '진주를 찾아서',
+        intro: ['저기 조개 속 진주 보이니?',
+                'move()는 앞으로 한 칸, pick()은 진주 줍기야.',
+                '컴퓨터는 위에서부터 차례대로 실행해. 순서대로 명령을 써 봐!'],
+        goal: '진주가 있는 칸까지 이동해서 pick()으로 주우세요.',
+        starter: '# move()로 한 칸씩 이동하고, pick()으로 진주를 주워요\nmove()\n',
+        hint: '진주까지 4칸이에요. move()를 4줄 쓰고 마지막 줄에 pick()!',
+        success: () => '잘했어! 명령을 순서대로 쓰면 컴퓨터는 그대로 따라 한단다.',
+        tests: [{ map: ['#######', '#S...*#', '#######'] }],
+        check: gemsCheck
+      },
+      {
+        title: '진주 두 개',
+        intro: ['이번엔 진주가 두 개야.', '어디서 멈추고 어디서 주울지, 순서를 잘 생각해 봐!'],
+        goal: '진주 2개를 모두 주우세요.',
+        starter: '# 진주 2개를 모두 주워요\n',
+        hint: '2칸 이동 → pick() → 3칸 이동 → pick()',
+        success: () => '순서 완벽! 한 줄만 바뀌어도 결과가 달라진다는 걸 기억해.',
+        tests: [{ map: ['#########', '#S.*..*.#', '#########'] }],
+        check: gemsCheck
+      },
+      {
+        title: '성게를 넘어라',
+        intro: ['조심! 모래 위에 뾰족한 성게가 있어. 밟으면 따끔해!',
+                'jump()는 앞으로 두 칸을 한 번에 뛰어넘어.',
+                '언제 걷고 언제 뛸지 순서를 정해 봐!'],
+        goal: '성게는 jump()로 뛰어넘고, 진주 2개를 모두 주우세요.',
+        cmds: [['move()', '앞으로 한 칸'], ['jump()', '두 칸 점프'], ['pick()', '진주 줍기']],
+        starter: '# 성게 앞에서는 jump()!\n',
+        hint: 'move() 2번 → pick() → jump() → move() → pick()',
+        success: () => '깔끔한 점프! 상황에 맞는 명령을 고르는 것도 중요한 실력이야.',
+        tests: [{ map: ['#########', '#S.*T.*.#', '#########'] }],
+        check: gemsCheck
+      }
+    ]
+  },
+  /* ---------------- 4. for 반복문 ---------------- */
+  {
+    name: 'for 반복',
+    concept: '<b>for i in range(5):</b> 는 아래 들여쓴 코드를 5번 반복해요. 줄 끝의 <b>콜론(:)</b>과 스페이스 4칸 <b>들여쓰기</b>를 잊지 마세요!',
+    cmds: [['for i in range(3):', '반복'], ['move()', '앞으로'], ['pick()', '줍기']],
+    levels: [
+      {
+        title: '기나긴 모래톱',
+        intro: ['이번엔 길이 엄청 길어… move()를 몇 번이나 써야 하지?',
+                '같은 일을 여러 번 할 땐 for 반복문을 쓰면 돼.',
+                'for i in range(횟수): 다음 줄은 스페이스 4칸 들여쓰기! 들여 쓴 줄만 반복돼.'],
+        goal: 'for 반복문을 사용해서 끝까지 가서 진주를 주우세요.',
+        starter: '# move()를 9번 쓰기는 힘들어요. 반복문을 써 봐요!\nfor i in range(3):\n    move()\npick()\n',
+        hint: '진주까지 9칸이에요. range( ) 안의 숫자를 바꿔 보세요.',
+        success: () => '대단해! 9줄이 3줄로 줄었지? 이게 반복문의 힘이야.',
+        tests: [{ map: ['############', '#S........*#', '############'] }],
+        check: (r, code) => has(code, 'for') ? gemsCheck(r) : '이번 퀘스트는 for 반복문을 사용해야 해요!'
+      },
+      {
+        title: '진주 목걸이',
+        intro: ['와, 진주가 한 줄로 쭉 놓여 있어!', '반복문 안에는 여러 줄을 넣을 수 있어. 들여쓰기만 맞추면 돼.'],
+        goal: 'for 반복문 안에 move()와 pick()을 함께 넣어서 진주 6개를 모두 주우세요.',
+        starter: 'for i in range(6):\n    move()\n    # 여기에 한 줄 더!\n',
+        hint: 'move() 아래에 같은 칸만큼(스페이스 4칸) 들여 써서 pick()을 넣어 보세요.',
+        success: () => '좋아! 들여 쓴 줄들이 한 묶음으로 반복된다는 걸 알았지?',
+        tests: [{ map: ['#########', '#S******#', '#########'] }],
+        check: (r, code) => has(code, 'for') ? gemsCheck(r) : '이번 퀘스트는 for 반복문을 사용해야 해요!'
+      },
+      {
+        title: '두 칸마다 진주',
+        intro: ['이번엔 진주가 두 칸마다 하나씩 있어.', '어떤 묶음이 반복되는지 찾아내는 게 핵심이야. 코드는 5줄 이내로!'],
+        goal: '반복되는 묶음을 찾아 for 반복문으로 진주 4개를 주우세요. 코드는 5줄 이내!',
+        starter: '# 반복되는 묶음을 찾아봐요. 코드는 5줄 이내!\n',
+        hint: '"move(), move(), pick()" 묶음이 4번 반복돼요.',
+        success: () => '패턴을 찾는 눈이 생겼구나! 이게 바로 컴퓨팅 사고력이야.',
+        tests: [{ map: ['###########', '#S.*.*.*.*#', '###########'] }],
+        check: (r, code) => {
+          if (!has(code, 'for')) return '이번 퀘스트는 for 반복문을 사용해야 해요!';
+          const n = codeLines(code);
+          if (n > 5) return `코드가 ${n}줄이에요. 반복되는 묶음을 찾아 5줄 이내로 줄여 보세요!`;
+          return gemsCheck(r);
+        }
+      }
+    ]
+  },
+  /* ---------------- 5. 방향 바꾸기 ---------------- */
+  {
+    name: '방향 바꾸기',
+    concept: '방향을 바꾸는 것과 움직이는 것은 <b>다른 명령</b>이에요. 돈 다음에 move()를 해야 그쪽으로 가요. 파이 옆의 노란 화살표가 지금 보는 방향이에요.',
+    cmds: [['move()', '앞으로'], ['turn_left()', '왼쪽으로 돌기'], ['turn_right()', '오른쪽으로 돌기'], ['pick()', '줍기'], ['for i in range(3):', '반복']],
+    levels: [
+      {
+        title: '꺾인 해변길',
+        intro: ['길이 꺾여 있네! 앞으로만 가면 바다에 풍덩할 거야.',
+                'turn_left()는 왼쪽으로, turn_right()는 오른쪽으로 몸을 돌려.',
+                '파이 옆의 노란 화살표가 지금 바라보는 방향이야. 잘 보고 돌아 봐!'],
+        goal: '길을 따라 이동해서 진주를 주우세요.',
+        starter: '# 길이 꺾여 있어요! 방향을 바꾸는 명령을 써 봐요\n',
+        hint: '오른쪽으로 4칸 → turn_left() → 위로 3칸 → pick()',
+        success: () => '방향 감각 최고! 이제 어디든 갈 수 있겠어.',
+        tests: [{ map: ['#######', '#####*#', '#####.#', '#####.#', '#S....#', '#######'] }],
+        check: gemsCheck
+      },
+      {
+        title: '지그재그 해변',
+        intro: ['이번엔 왼쪽으로도, 오른쪽으로도 돌아야 해.', '헷갈리면 파이가 되었다고 상상해 봐. 파이 입장에서 왼쪽은 어디일까?'],
+        goal: '왼쪽, 오른쪽으로 방향을 바꾸며 길 끝의 진주를 주우세요.',
+        starter: '# 파이 입장에서 왼쪽, 오른쪽을 생각해요\n',
+        hint: '2칸 → turn_left() → 2칸 → turn_right() → 2칸 → pick()',
+        success: () => '훌륭해! 다른 사람(공룡) 입장에서 생각하는 것도 코딩 실력이야.',
+        tests: [{ map: ['#######', '###..*#', '###.###', '#S..###', '#######'] }],
+        check: gemsCheck
+      },
+      {
+        title: '섬 한 바퀴',
+        intro: ['작은 섬 둘레의 모서리마다 진주가 있어.', '"3칸 가고, 줍고, 돌기"가 계속 반복되지 않니? 반복문으로 6줄 이내에 해결해 봐!'],
+        goal: '섬 둘레를 돌며 진주 3개를 모두 주우세요. for 반복문을 써서 6줄 이내로!',
+        starter: '# 반복되는 동작을 찾아요. 6줄 이내!\n',
+        hint: 'for 안에 move() 3번 → pick() → turn_left() 를 넣고 3번 반복해요.',
+        success: () => '섬 한 바퀴 완주! 이동과 회전도 반복으로 묶을 수 있지.',
+        tests: [{ map: ['######', '#*..*#', '#.##.#', '#.##.#', '#S..*#', '######'] }],
+        check: (r, code) => {
+          if (!has(code, 'for')) return '이번 퀘스트는 for 반복문을 사용해야 해요!';
+          const n = codeLines(code);
+          if (n > 6) return `코드가 ${n}줄이에요. 6줄 이내로 줄여 보세요!`;
+          return gemsCheck(r);
+        }
+      }
+    ]
+  },
+  /* ---------------- 6. if 조건문 ---------------- */
+  {
+    name: 'if 조건',
+    concept: '<b>if 조건:</b> 아래 코드는 조건이 참일 때만, <b>else:</b> 아래 코드는 거짓일 때 실행돼요. 같은지 비교할 때는 <b>==</b> (등호 두 개)를 써요.',
+    cmds: [['look()', '앞 칸 살피기'], ['jump()', '두 칸 점프'], ['move()', '앞으로'], ['pick()', '줍기'], ['if thing == "함정":', '조건'], ['else:', '아니면']],
+    levels: [
+      {
+        title: '수상한 길',
+        intro: ['이 길엔 성게가 있을 때도 있고, 진주가 있을 때도 있어.',
+                'look()으로 앞 칸을 살펴볼 수 있어. 결과는 "함정" 아니면 "진주"야.',
+                '함정이면 jump(), 아니면 move()! 상황에 따라 다르게 행동하는 게 if 조건문이야.',
+                '두 가지 상황으로 테스트할 거야. 둘 다 성공해야 통과!'],
+        goal: '앞이 함정이면 jump(), 진주면 move() 한 뒤 진주를 주우세요. 두 가지 상황 모두 통과해야 해요.',
+        starter: 'thing = look()      # 앞 칸 확인: "함정" 또는 "진주"\nprint(thing)\n\nif thing == "함정":\n    pass    # pass를 지우고 여기에 명령을 써요\nelse:\n    pass    # pass를 지우고 여기에 명령을 써요\n\npick()\n',
+        hint: 'if 아래의 pass를 jump()로, else 아래의 pass를 move()로 바꿔 보세요.',
+        success: () => '완벽해! 상황을 판단하는 프로그램을 만들었구나.',
+        tests: [
+          { label: '성게가 있는 길', map: ['#####', '#ST*#', '#####'] },
+          { label: '진주가 있는 길', map: ['#####', '#S*.#', '#####'] }
+        ],
+        check: (r, code) => has(code, 'if') ? gemsCheck(r) : '이번 퀘스트는 if 조건문을 사용해야 해요!'
+      },
+      {
+        title: '진주가 있을까?',
+        intro: ['이번엔 진주가 어디 있을지 매번 달라.',
+                'is_pearl()은 지금 서 있는 칸에 진주가 있으면 True를 알려줘.',
+                '한 칸씩 가면서, 진주가 있을 때만 주워 봐. 없는 곳에서 pick() 하면 실패야!'],
+        goal: 'for 반복문 안에서 if로 진주가 있을 때만 주우세요. 진주 위치가 다른 2가지 상황 모두 통과해야 해요.',
+        concept: '<b>is_pearl()</b>은 지금 칸에 진주가 있으면 True, 없으면 False예요. <b>if is_pearl():</b> 처럼 조건 자리에 바로 쓸 수 있어요. 반복문 안의 if는 8칸 들여쓰기!',
+        cmds: [['for i in range(6):', '반복'], ['move()', '앞으로'], ['if is_pearl():', '진주가 있으면'], ['pick()', '줍기']],
+        starter: 'for i in range(6):\n    move()\n    if is_pearl():\n        pass    # pass를 지우고 진주를 주워요\n',
+        hint: 'pass 를 pick() 으로 바꾸면 돼요. 들여쓰기는 그대로!',
+        success: () => '반복문과 조건문을 함께 썼어! 진짜 프로그램은 대부분 이렇게 생겼단다.',
+        tests: [
+          { label: '진주 배치 A', map: ['#########', '#S*..*.*#', '#########'] },
+          { label: '진주 배치 B', map: ['#########', '#S.**..*#', '#########'] }
+        ],
+        check: (r, code) => has(code, 'if') ? gemsCheck(r) : '이번 퀘스트는 if 조건문을 사용해야 해요!'
+      },
+      {
+        title: '세 갈래 선택',
+        intro: ['앞 칸은 세 가지 중 하나야. "함정", "진주", 아니면 그냥 "길".',
+                '경우가 셋 이상이면 elif를 써. "아니면 만약에~"라는 뜻이야.',
+                '4번 살피면서 각 상황에 맞게 행동해 봐!'],
+        goal: 'if / elif / else로 함정은 jump(), 진주는 move() 후 pick(), 길은 move() 하세요. 2가지 상황 모두 통과!',
+        concept: '<b>if – elif – else</b> 로 세 가지 이상의 상황을 나눌 수 있어요. 위에서부터 차례로 검사해서, 처음으로 참인 곳 <b>하나만</b> 실행돼요.',
+        cmds: [['look()', '앞 칸 살피기'], ['if thing == "함정":', '조건'], ['elif thing == "진주":', '아니면 만약'], ['else:', '나머지'], ['jump()', '점프'], ['move()', '앞으로'], ['pick()', '줍기']],
+        starter: 'for i in range(4):\n    thing = look()\n    if thing == "함정":\n        jump()\n    # elif 로 "진주"일 때를 처리해요\n\n    else:\n        move()\n',
+        hint: 'else 위에 elif thing == "진주": 를 쓰고, 그 아래에 move() 와 pick() 을 들여 써요.',
+        success: () => '세 갈래 판단까지 완벽해! 이제 웬만한 상황은 다 다룰 수 있겠어.',
+        tests: [
+          { label: '바다길 A', map: ['########', '#S*T..*#', '########'] },
+          { label: '바다길 B', map: ['########', '#ST.**.#', '########'] }
+        ],
+        check: (r, code) => has(code, 'elif') ? gemsCheck(r) : '이번 퀘스트는 elif를 사용해야 해요!'
+      }
+    ]
+  },
+  /* ---------------- 7. while 반복문 ---------------- */
+  {
+    name: 'while 반복',
+    concept: '<b>while 조건:</b> 은 조건이 True인 동안 계속 반복해요. 반복 안에서 아무것도 바뀌지 않으면 영원히 끝나지 않으니 조심!',
+    cmds: [['while front_is_clear():', '앞이 비어 있는 동안'], ['move()', '앞으로'], ['pick()', '줍기']],
+    levels: [
+      {
+        title: '끝이 안 보이는 모래톱',
+        intro: ['이 모래톱은 올 때마다 길이가 달라져! 몇 칸 가야 할지 몰라.',
+                '이럴 땐 while 반복문! 조건이 참인 동안 계속 반복해.',
+                'front_is_clear()는 앞이 비어 있으면 True를 알려줘. 앞이 막힐 때까지 move() 해 봐!'],
+        goal: 'while 반복문으로 바다 앞까지 이동해서 진주를 주우세요. 길이가 다른 모래톱 2곳 모두 통과!',
+        starter: '# 모래톱 길이가 매번 달라요!\n# front_is_clear() : 앞이 비어 있으면 True\nwhile front_is_clear():\n    pass    # pass를 지우고 여기에 이동 명령을 써요\n\npick()\n',
+        hint: 'pass를 move()로 바꿔 보세요. 앞이 막힐 때까지 계속 움직일 거예요.',
+        success: () => '훌륭해! 몇 번 반복할지 몰라도 while이면 문제없지.',
+        tests: [
+          { label: '짧은 모래톱', map: ['######', '#S..*#', '######'] },
+          { label: '긴 모래톱', map: ['##########', '#S......*#', '##########'] }
+        ],
+        check: (r, code) => has(code, 'while') ? gemsCheck(r) : '이번 퀘스트는 while 반복문을 사용해야 해요!'
+      },
+      {
+        title: '진주 끝까지',
+        intro: ['모래톱 끝까지 진주가 빼곡해. 그런데 길이는 또 매번 달라!', 'while 안에도 여러 줄을 넣을 수 있어.'],
+        goal: 'while 반복문으로 끝까지 가면서 모든 칸의 진주를 주우세요. 2곳 모두 통과!',
+        starter: 'while front_is_clear():\n    move()\n    # 여기에 한 줄 더!\n',
+        hint: 'move() 아래에 들여 써서 pick()을 넣어 보세요.',
+        success: () => '진주를 싹쓸이했네! while 안에서도 여러 동작을 반복할 수 있어.',
+        tests: [
+          { label: '짧은 모래톱', map: ['######', '#S***#', '######'] },
+          { label: '긴 모래톱', map: ['#########', '#S******#', '#########'] }
+        ],
+        check: (r, code) => has(code, 'while') ? gemsCheck(r) : '이번 퀘스트는 while 반복문을 사용해야 해요!'
+      },
+      {
+        title: '진주 탐지기',
+        intro: ['길이도 모르고, 진주가 어디 있는지도 몰라.', 'while과 if를 함께 쓰면 어떤 모래톱이든 해결할 수 있어. 처음부터 직접 짜 봐!'],
+        goal: 'while과 if를 함께 써서, 끝까지 가면서 진주가 있는 칸에서만 주우세요. 2곳 모두 통과!',
+        cmds: [['while front_is_clear():', '앞이 비어 있는 동안'], ['move()', '앞으로'], ['if is_pearl():', '진주가 있으면'], ['pick()', '줍기']],
+        starter: '# while + if 로 진주 탐지기를 만들어요\n',
+        hint: 'while front_is_clear(): 안에 move() 를 쓰고, 그 아래에 if is_pearl(): pick() 을 넣어요.',
+        success: () => '최고의 탐지기야! 어떤 모래톱을 줘도 해결하는 "일반적인" 코드를 만들었어.',
+        tests: [
+          { label: '모래톱 A', map: ['########', '#S.*..*#', '########'] },
+          { label: '모래톱 B', map: ['###########', '#S*.*..**.#', '###########'] }
+        ],
+        check: (r, code) => {
+          if (!has(code, 'while')) return '이번 퀘스트는 while 반복문을 사용해야 해요!';
+          if (!has(code, 'if')) return '진주가 있는지 if로 확인해야 해요!';
+          return gemsCheck(r);
+        }
+      }
+    ]
+  },
+  /* ---------------- 8. 함수 ---------------- */
+  {
+    name: '함수 만들기',
+    concept: '<b>def 함수이름():</b> 아래에 들여쓴 코드가 함수의 내용이에요. 만든 뒤에 <b>함수이름()</b> 으로 불러야 실행돼요.',
+    cmds: [['def step():', '함수 만들기'], ['move()', '앞으로'], ['turn_left()', '왼쪽'], ['turn_right()', '오른쪽'], ['pick()', '줍기'], ['for i in range(4):', '반복']],
+    levels: [
+      {
+        title: '바위 계단',
+        intro: ['바위 계단 꼭대기에 진주가 있어!',
+                '계단 한 칸 오르는 동작이 계속 반복되지? 이 동작에 이름을 붙여 보자.',
+                'def 이름(): 으로 나만의 명령(함수)을 만들 수 있어. 한 번 만들면 몇 번이든 부를 수 있지!'],
+        goal: 'def로 계단 한 칸 오르는 함수를 만들고, 그 함수를 불러서 꼭대기의 진주를 주우세요.',
+        starter: '# 계단 한 칸 오르기를 함수로 만들어요\ndef step():\n    move()\n    # 여기에 이어서 써요\n\nstep()\n',
+        hint: '계단 한 칸 = move() → turn_left() → move() → turn_right(). step()을 4번 부르고 pick()!',
+        success: () => '함수를 만들었어! 이제 step() 하나로 계단 한 칸을 오를 수 있지.',
+        tests: [{ map: ['#######', '#####*#', '####..#', '###..##', '##..###', '#S.####', '#######'] }],
+        check: (r, code) => has(code, 'def') ? gemsCheck(r) : '이번 퀘스트는 def로 함수를 만들어야 해요!'
+      },
+      {
+        title: '뒤로 돌아!',
+        intro: ['파이 양쪽 끝에 진주가 하나씩 있어.', '파이에겐 "뒤로 돌기" 명령이 없어. 그럼 직접 만들면 되지!'],
+        goal: 'turn_around() 함수를 완성하고, 양쪽 끝의 진주 2개를 모두 주우세요.',
+        cmds: [['def turn_around():', '함수 만들기'], ['turn_left()', '왼쪽'], ['move()', '앞으로'], ['pick()', '줍기'], ['for i in range(3):', '반복']],
+        starter: 'def turn_around():\n    pass    # 왼쪽으로 두 번 돌면 뒤를 봐요\n\nfor i in range(3):\n    move()\npick()\n',
+        hint: 'pass 대신 turn_left()를 두 줄 쓰고, 진주를 주운 뒤 turn_around() → 6칸 이동 → pick()',
+        success: () => '없는 명령은 만들어 쓰면 된다! 이게 함수의 진짜 힘이야.',
+        tests: [{ map: ['#########', '#*..S..*#', '#########'] }],
+        check: (r, code) => has(code, 'def') ? gemsCheck(r) : '이번 퀘스트는 def로 함수를 만들어야 해요!'
+      },
+      {
+        title: '보물 계단',
+        intro: ['마지막 관문이야! 계단 곳곳에 진주가 숨어 있는데, 위치가 매번 달라.',
+                '지금까지 배운 함수, 반복문, 조건문을 모두 써서 해결해 봐!'],
+        goal: 'step() 함수와 for, if를 함께 써서 계단을 오르며 진주가 있는 칸에서만 주우세요. 2가지 상황 모두 통과!',
+        cmds: [['def step():', '함수'], ['for i in range(4):', '반복'], ['if is_pearl():', '진주가 있으면'], ['pick()', '줍기'], ['move()', '앞으로'], ['turn_left()', '왼쪽'], ['turn_right()', '오른쪽']],
+        starter: 'def step():\n    move()\n    turn_left()\n    move()\n    turn_right()\n\n# 계단을 4번 오르면서, 진주가 있는 칸에서만 주워요\n',
+        hint: 'for i in range(4): 안에서 step() 을 부르고, 이어서 if is_pearl(): pick() 을 넣어요.',
+        success: n => `축하해, ${n}! 함수, 반복, 조건을 모두 엮었어. 이제 진짜 파이썬 탐험가야!`,
+        tests: [
+          { label: '계단 A', map: ['#######', '#####.#', '####*.#', '###..##', '##*.###', '#S.####', '#######'] },
+          { label: '계단 B', map: ['#######', '#####*#', '####..#', '###*.##', '##..###', '#S.####', '#######'] }
+        ],
+        check: (r, code) => {
+          if (!has(code, 'def')) return '이번 퀘스트는 def로 함수를 만들어야 해요!';
+          if (!has(code, 'if')) return '진주가 있는지 if로 확인해야 해요!';
+          return gemsCheck(r);
+        }
+      }
+    ]
+  }
+];
+
+const STAGES = [];
+CH.forEach((c, ci) => c.levels.forEach((l, li) => STAGES.push(Object.assign(
+  { ch: ci, lv: li, id: `${ci + 1}-${li + 1}`, tag: c.name, concept: c.concept, cmds: c.cmds }, l))));
+const stageIndex = (ch, lv) => ch * 3 + lv;
+
+/* ================= 진행 상황 저장 ================= */
+const SAVE_KEY = 'pyquest-ocean-v1';
+function loadProg() {
+  try { const p = JSON.parse(localStorage.getItem(SAVE_KEY)); if (p && p.cleared && !Array.isArray(p.cleared)) return p; } catch (e) {}
+  return { cleared: {}, name: '', code: {}, unlockAll: false };
+}
+function saveProg() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(prog)); } catch (e) {} }
+let prog = loadProg();
+function isUnlocked(i) {
+  const s = STAGES[i];
+  if (prog.unlockAll || prog.cleared[i]) return true;
+  if (s.lv === 0) return s.ch === 0 || !!prog.cleared[stageIndex(s.ch - 1, 0)];
+  return !!prog.cleared[i - 1];
+}
+
+/* ================= 소리 ================= */
+let AC = null, muted = false;
+let gestured = false;
+['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, () => { gestured = true; }, { once: true, capture: true }));
+function tone(f, d, type = 'sine', v = .07, delay = 0) {
+  if (muted || !gestured) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime + delay;
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(v, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + d);
+    o.connect(g).connect(AC.destination); o.start(t0); o.stop(t0 + d + .02);
+  } catch (e) {}
+}
+const sfx = {
+  step: () => tone(500, .07, 'triangle', .035),
+  jump: () => { tone(400, .1, 'triangle', .05); tone(700, .12, 'triangle', .05, .08); },
+  pick: () => { tone(880, .12, 'sine', .08); tone(1320, .2, 'sine', .06, .08); },
+  bump: () => tone(130, .22, 'square', .05),
+  say: () => tone(660, .05, 'sine', .04),
+  win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, .28, 'triangle', .08, i * .12)),
+  err: () => { tone(220, .18, 'sawtooth', .035); tone(160, .25, 'sawtooth', .035, .12); }
+};
+
+
+/* ================= 스프라이트 ================= */
+const $ = s => document.querySelector(s);
+const sprCache = {};
+function makeSprite(name) {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 16;
+  const x = c.getContext('2d');
+  SPR.sp[name].forEach((row, y) => [...row].forEach((ch, i) => {
+    if (ch !== '.') { x.fillStyle = SPR.pal[ch]; x.fillRect(i, y, 1, 1); }
+  }));
+  return c;
+}
+Object.keys(SPR.sp).forEach(n => sprCache[n] = makeSprite(n));
+function paintTo(canvasEl, name) {
+  const x = canvasEl.getContext('2d'); x.imageSmoothingEnabled = false;
+  x.clearRect(0, 0, 16, 16); x.drawImage(sprCache[name], 0, 0);
+}
+
+/* ================= 캔버스 / 월드 ================= */
+const cv = $('#game'), ctx = cv.getContext('2d');
+let DPR = 1;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  DPR = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * DPR); cv.height = Math.round(r.height * DPR);
+}
+window.addEventListener('resize', resize);
+
+const INK = '#071a2e';
+const DX = [1, 0, -1, 0], DY = [0, -1, 0, 1];
+const WD = { grid: [], w: 1, h: 1, total: 0, got: 0 };
+const P = { x: 0, y: 0, d: 0, face: 1, tw: null, bump: null, fall: null };
+let bubble = null, owlBubble = null, particles = [];
+
+function loadWorld(map, dir = 0) {
+  WD.grid = map.map(r => r.split(''));
+  WD.h = map.length; WD.w = map[0].length;
+  WD.total = 0; WD.got = 0;
+  WD.grid.forEach((row, y) => row.forEach((c, x) => {
+    if (c === 'S') { P.x = x; P.y = y; row[x] = '.'; }
+    if (c === '*') WD.total++;
+  }));
+  P.d = dir; P.face = dir === 2 ? -1 : 1;
+  P.tw = P.bump = P.fall = null;
+  bubble = null; owlBubble = null; particles = [];
+  updateHud();
+}
+function updateHud() {
+  $('#hudGem').innerHTML = WD.total ? `진주 <b>${WD.got}</b> / ${WD.total}` : '거북 쌤에게 말 걸기';
+}
+
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+
+function layout() {
+  const dlg = ($('#dialog').offsetHeight + 28) * DPR;
+  const availW = cv.width - 40 * DPR, availH = cv.height - dlg - 56 * DPR;
+  let s = Math.floor(Math.min(availW / (16 * WD.w), availH / (16 * WD.h)));
+  s = Math.max(1, Math.min(s, Math.round(6 * DPR)));
+  const T = 16 * s;
+  const ox = Math.round((cv.width - T * WD.w) / 2);
+  const oy = Math.round(Math.max(48 * DPR, 44 * DPR + (cv.height - dlg - 44 * DPR - T * WD.h) / 2));
+  return { s, T, ox, oy };
+}
+function spr(name, x, y, s, flip = false, scale = 1) {
+  const w = 16 * s * scale;
+  x = Math.round(x + (16 * s - w) / 2); y = Math.round(y + (16 * s - w));
+  if (flip) { ctx.save(); ctx.translate(x + w, y); ctx.scale(-1, 1); ctx.drawImage(sprCache[name], 0, 0, w, w); ctx.restore(); }
+  else ctx.drawImage(sprCache[name], x, y, w, w);
+}
+function wrapText(text, maxW) {
+  const lines = []; let cur = '';
+  for (const ch of String(text)) {
+    if (ch === '\n') { lines.push(cur); cur = ''; continue; }
+    if (ctx.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch; } else cur += ch;
+  }
+  lines.push(cur);
+  if (lines.length > 3) { lines.length = 3; lines[2] = lines[2].slice(0, -1) + '…'; }
+  return lines;
+}
+function pixBox(x, y, w, h, fill, b) {
+  ctx.fillStyle = INK;
+  ctx.fillRect(x - b, y, w + 2 * b, h); ctx.fillRect(x, y - b, w, h + 2 * b);
+  ctx.fillStyle = fill; ctx.fillRect(x, y, w, h);
+}
+function drawBubble(cx, bottom, text, fill = '#f6ecd2') {
+  const U = DPR, fs = Math.round(15 * U), b = Math.round(3 * U), st = Math.round(3 * U);
+  ctx.font = `${fs}px Galmuri11, sans-serif`;
+  const lines = wrapText(text, Math.min(260 * U, cv.width * .55));
+  const lh = Math.round(fs * 1.35);
+  const w = Math.ceil(Math.max(...lines.map(l => ctx.measureText(l).width))) + Math.round(18 * U);
+  const h = lines.length * lh + Math.round(12 * U);
+  const x = Math.round(clamp(cx - w / 2, 8 * U, cv.width - w - 8 * U));
+  let y = Math.round(bottom - h - 4 * st); if (y < 8 * U) y = Math.round(8 * U);
+  pixBox(x, y, w, h, fill, b);
+  cx = Math.round(clamp(cx, x + 4 * st, x + w - 4 * st));
+  for (let j = 0; j < 3; j++) {
+    const half = (3 - j) * st;
+    ctx.fillStyle = INK; ctx.fillRect(cx - half - b, y + h + j * st, 2 * half + 2 * b, st);
+    ctx.fillStyle = fill; ctx.fillRect(cx - half, y + h + j * st - (j === 0 ? b : 0), 2 * half, st + (j === 0 ? b : 0));
+  }
+  ctx.fillStyle = INK; ctx.fillRect(cx - b, y + h + 3 * st, 2 * b, b);
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  lines.forEach((l, i) => ctx.fillText(l, x + Math.round(9 * U), y + Math.round(7 * U) + i * lh));
+}
+function burst(gx, gy) {
+  const { T, ox, oy } = layout();
+  const cx = ox + (gx + .5) * T, cy = oy + (gy + .5) * T;
+  for (let i = 0; i < 16; i++) {
+    const a = Math.random() * Math.PI * 2, sp = (70 + Math.random() * 110) * DPR;
+    particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 70 * DPR, life: 1, c: ['#ffcc4d', '#fdfaf2', '#ff9fc0', '#7be7f0'][i % 4] });
+  }
+}
+function drawArrow(cx, cy, T, s, d) {
+  const steps = [5, 3, 1];
+  ctx.fillStyle = '#ffcc4d';
+  const base = T * .5 + s;
+  steps.forEach((len, i) => {
+    for (let k = 0; k < len; k++) {
+      const along = base + i * s, across = (k - (len - 1) / 2) * s;
+      let x, y;
+      if (d === 0) { x = cx + along; y = cy + across; }
+      else if (d === 2) { x = cx - along - s; y = cy + across; }
+      else if (d === 1) { x = cx + across; y = cy - along - s; }
+      else { x = cx + across; y = cy + along; }
+      ctx.fillRect(Math.round(x - (d % 2 ? s / 2 : 0)), Math.round(y - (d % 2 ? 0 : s / 2)), s, s);
+    }
+  });
+}
+const isWater = (x, y) => y < 0 || y >= WD.h || x < 0 || x >= WD.w || WD.grid[y][x] === '#';
+function drawFoam(px, py, x, y, s, T, t) {
+  // 모래 가장자리에 부서지는 파도
+  const ph = Math.floor(t * 2) % 2;
+  ctx.fillStyle = '#e9fbff';
+  for (let k = 0; k < 16; k++) {
+    if ((k + ph) % 3 === 0) continue;
+    if (isWater(x, y - 1)) ctx.fillRect(px + k * s, py, s, s);
+    if (isWater(x, y + 1)) ctx.fillRect(px + k * s, py + T - s, s, s);
+    if (isWater(x - 1, y)) ctx.fillRect(px, py + k * s, s, s);
+    if (isWater(x + 1, y)) ctx.fillRect(px + T - s, py + k * s, s, s);
+  }
+}
+
+let lastT = performance.now();
+function frame(now) {
+  const t = now / 1000, dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
+  ctx.imageSmoothingEnabled = false;
+  const { s, T, ox, oy } = layout();
+  const wf = Math.floor(t * 1.4) % 2;
+
+  // 깊은 바다
+  const sx = ox - Math.ceil(ox / T) * T, sy = oy - Math.ceil(oy / T) * T;
+  for (let y = sy; y < cv.height; y += T) for (let x = sx; x < cv.width; x += T) ctx.drawImage(sprCache['deep' + wf], x, y, T, T);
+
+  // 얕은 바다 + 모래
+  WD.grid.forEach((row, y) => row.forEach((c, x) => {
+    const px = ox + x * T, py = oy + y * T;
+    if (c === '#') { ctx.drawImage(sprCache['shallow' + ((wf + x + y) % 2)], px, py, T, T); return; }
+    const h = (x * 7 + y * 13) % 9;
+    const g = h === 1 ? 'sand1' : h === 4 ? 'sand2' : h === 7 ? 'sand3' : 'sand0';
+    ctx.drawImage(sprCache[g], px, py, T, T);
+    drawFoam(px, py, x, y, s, T, t);
+  }));
+
+  let owlPos = null;
+  const sprites = [];
+  WD.grid.forEach((row, y) => row.forEach((c, x) => {
+    const px = ox + x * T, py = oy + y * T;
+    if (c === 'T') spr('urchin', px, py, s);
+    else if (c === '*') sprites.push([y, () => spr('pearl', px, py - (Math.floor(t * 2.5 + x) % 2) * s, s)]);
+    else if (c === 'O') { owlPos = [px + T / 2, py]; sprites.push([y, () => spr('turtle', px, py - (Math.floor(t * 1.5) % 2) * s, s)]); }
+  }));
+
+  // 파이
+  let px = P.x, py = P.y, hop = 0, sc = 1, moving = false;
+  if (P.tw) {
+    const k = clamp((now - P.tw.s) / P.tw.dur), e = ease(k);
+    px = lerp(P.tw.fx, P.tw.tx, e); py = lerp(P.tw.fy, P.tw.ty, e);
+    hop = Math.sin(Math.PI * k) * P.tw.hop; moving = true;
+    if (k >= 1) P.tw = null;
+  }
+  if (P.bump) {
+    const k = clamp((now - P.bump.s) / P.bump.dur);
+    const off = Math.sin(Math.PI * k) * .22;
+    px += DX[P.d] * off; py += DY[P.d] * off;
+    if (k >= 1) P.bump = null;
+  }
+  if (P.fall) sc = 1 - clamp((now - P.fall.s) / P.fall.dur);
+  const dinoX = ox + px * T, dinoY = oy + py * T;
+  const bob = moving ? 0 : (Math.floor(t * 2) % 2) * s;
+  const lift = Math.round(hop * T / s) * s;
+  sprites.push([py + .01, () => {
+    if (sc > .02) {
+      ctx.fillStyle = 'rgba(7,26,46,.25)';
+      ctx.fillRect(Math.round(dinoX + 4 * s), Math.round(dinoY + 14 * s), 8 * s * sc, 2 * s);
+      const fr = moving && Math.floor(now / 110) % 2 ? 'dino1' : 'dino0';
+      spr(fr, Math.round(dinoX), Math.round(dinoY - lift + bob), s, P.face < 0, sc);
+    }
+  }]);
+  sprites.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
+
+  if (sc > .9 && !P.tw && Math.floor(t * 2.5) % 2) drawArrow(Math.round(dinoX + T / 2), Math.round(dinoY + T / 2), T, s, P.d);
+  const headY = dinoY - lift + bob;
+  if (prog.name && sc > .9) {
+    const fs = Math.round(12 * DPR);
+    ctx.font = `${fs}px Galmuri11, sans-serif`;
+    const w = Math.ceil(ctx.measureText(prog.name).width) + Math.round(10 * DPR), h = fs + Math.round(6 * DPR);
+    const x = Math.round(dinoX + T / 2 - w / 2), y = Math.round(headY - h + s);
+    pixBox(x, y, w, h, '#134a73', Math.round(2 * DPR));
+    ctx.fillStyle = '#f6ecd2'; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    ctx.fillText(prog.name, x + Math.round(5 * DPR), y + Math.round(3 * DPR));
+  }
+  ctx.fillStyle = INK;
+  if (bubble && now < bubble.until) { drawBubble(dinoX + T / 2, headY - (prog.name ? 16 * DPR : 0), bubble.text); }
+  if (owlBubble && owlPos && now < owlBubble.until) drawBubble(owlPos[0], owlPos[1], owlBubble.text, '#ffe9a8');
+
+  particles = particles.filter(p => (p.life -= dt * 1.5) > 0);
+  particles.forEach(p => {
+    p.vy += 320 * DPR * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+    ctx.fillStyle = p.c; ctx.fillRect(Math.round(p.x / s) * s, Math.round(p.y / s) * s, s, s);
+  });
+  requestAnimationFrame(frame);
+}
+
+/* ================= 애니메이션 재생 ================= */
+let speed = 1;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function playStep(e) {
+  const D = ms => ms / speed, now = () => performance.now();
+  setActiveLine(e.line);
+  switch (e.a) {
+    case 'move': case 'jump': {
+      const dur = D(e.a === 'jump' ? 520 : 320);
+      P.tw = { fx: P.x, fy: P.y, tx: e.x, ty: e.y, s: now(), dur, hop: e.a === 'jump' ? .9 : .08 };
+      P.x = e.x; P.y = e.y; e.a === 'jump' ? sfx.jump() : sfx.step();
+      await sleep(dur + 15); break;
+    }
+    case 'turn':
+      P.d = e.d; if (e.d === 0) P.face = 1; if (e.d === 2) P.face = -1;
+      await sleep(D(240)); break;
+    case 'say':
+      bubble = { text: e.text === '' ? '…' : e.text, until: now() + D(1200) };
+      logLine('out', e.text); sfx.say();
+      await sleep(D(950)); break;
+    case 'pick':
+      WD.grid[e.y][e.x] = '.'; WD.got++; updateHud(); burst(e.x, e.y); sfx.pick();
+      await sleep(D(420)); break;
+    case 'nopick':
+      bubble = { text: '어? 여긴 진주가 없네…', until: now() + D(1200) };
+      await sleep(D(800)); break;
+    case 'bump':
+      P.bump = { s: now(), dur: D(380) }; sfx.bump();
+      bubble = { text: '앞은 바다야!', until: now() + D(900) };
+      await sleep(D(450)); break;
+    case 'fall': {
+      const dur = D(300);
+      P.tw = { fx: P.x, fy: P.y, tx: e.x, ty: e.y, s: now(), dur, hop: .1 };
+      P.x = e.x; P.y = e.y; await sleep(dur);
+      bubble = { text: '앗, 따가워!', until: now() + D(1000) };
+      P.bump = { s: now(), dur: D(300) }; sfx.bump();
+      await sleep(D(650)); break;
+    }
+  }
+}
+
+/* ================= 대화창 ================= */
+let dq = [], typing = null, typingFull = '';
+function owlTalk(lines) { dq = Array.isArray(lines) ? [...lines] : [lines]; clearTyping(); nextLine(); }
+function clearTyping() { if (typing) { clearInterval(typing); typing = null; } }
+function nextLine() {
+  if (typing) { clearTyping(); $('#dtext').textContent = typingFull; $('#more').classList.toggle('hide', !dq.length); return; }
+  if (!dq.length) return;
+  typingFull = dq.shift(); let i = 0;
+  $('#more').classList.add('hide');
+  const chars = [...typingFull];
+  typing = setInterval(() => {
+    i++; $('#dtext').textContent = chars.slice(0, i).join('');
+    if (i % 3 === 1) tone(700 + (i % 5) * 30, .025, 'square', .012);
+    if (i >= chars.length) { clearTyping(); $('#more').classList.toggle('hide', !dq.length); }
+  }, 26);
+}
+$('#dialog').addEventListener('click', nextLine);
+$('#dialog').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nextLine(); } });
+
+/* ================= 에디터 ================= */
+const ta = $('#code'), gutter = $('#gutter'), hl = $('#hl');
+const LH = 26, PADT = 12;
+let activeLine = 0, errLine = 0;
+function renderGutter() {
+  const n = ta.value.split('\n').length;
+  let h = '';
+  for (let i = 1; i <= n; i++) h += `<div class="${i === errLine ? 'err' : i === activeLine ? 'act' : ''}">${i}</div>`;
+  gutter.innerHTML = h; gutter.scrollTop = ta.scrollTop; placeHl();
+}
+function placeHl() {
+  const ln = errLine || activeLine;
+  if (!ln) { hl.style.display = 'none'; return; }
+  hl.style.display = 'block'; hl.classList.toggle('err', !!errLine);
+  hl.style.top = (PADT + (ln - 1) * LH - ta.scrollTop) + 'px';
+}
+function setActiveLine(l) { activeLine = l || 0; renderGutter(); }
+function setErrLine(l) { errLine = l || 0; renderGutter(); }
+ta.addEventListener('scroll', () => { gutter.scrollTop = ta.scrollTop; placeHl(); });
+let saveTimer = null;
+ta.addEventListener('input', () => {
+  if (errLine) errLine = 0; renderGutter();
+  clearTimeout(saveTimer); saveTimer = setTimeout(() => { prog.code[cur] = ta.value; saveProg(); }, 300);
+});
+function insertText(text) {
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.setRangeText(text, s, e, 'end'); ta.dispatchEvent(new Event('input')); ta.focus();
+}
+ta.addEventListener('keydown', ev => {
+  if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runCode(); return; }
+  if (ev.key === 'Tab') {
+    ev.preventDefault();
+    const s = ta.selectionStart, lineStart = ta.value.lastIndexOf('\n', s - 1) + 1;
+    if (ev.shiftKey) {
+      const m = ta.value.slice(lineStart).match(/^ {1,4}/);
+      if (m) { ta.setRangeText('', lineStart, lineStart + m[0].length, 'preserve'); ta.selectionStart = ta.selectionEnd = Math.max(lineStart, s - m[0].length); ta.dispatchEvent(new Event('input')); }
+    } else insertText('    ');
+    return;
+  }
+  if (ev.key === 'Enter' && !ev.isComposing) {
+    ev.preventDefault();
+    const s = ta.selectionStart, lineStart = ta.value.lastIndexOf('\n', s - 1) + 1;
+    const line = ta.value.slice(lineStart, s);
+    let ind = line.match(/^ */)[0];
+    if (/:\s*(#.*)?$/.test(line)) ind += '    ';
+    insertText('\n' + ind);
+  }
+});
+
+/* ================= 콘솔 ================= */
+const con = $('#console');
+function logLine(kind, text) {
+  const d = document.createElement('div'); d.className = 'c-' + kind; d.textContent = text;
+  con.appendChild(d); con.scrollTop = con.scrollHeight;
+}
+function logHTML(kind, html) {
+  const d = document.createElement('div'); d.className = 'c-' + kind; d.innerHTML = html;
+  con.appendChild(d); con.scrollTop = con.scrollHeight;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ================= 오류 메시지 한국어 풀이 ================= */
+function explainError(err) {
+  const L = err.line ? `${err.line}번째 줄` : '코드';
+  const m = err.msg || '';
+  if (err.kind === 'stop') return { title: m, detail: err.line ? `(${L}에서 멈췄어요)` : '' };
+  switch (err.type) {
+    case 'IndentationError': case 'TabError':
+      if (/unexpected indent/.test(m)) return { title: `${L}: 필요 없는 들여쓰기가 있어요`, detail: 'if, for, while, def 블록 안이 아니라면 줄 맨 앞에 공백이 없어야 해요.' };
+      if (/expected an indented block/.test(m)) return { title: `${L}: 들여쓰기가 필요해요`, detail: '콜론(:)으로 끝나는 줄 다음 줄은 스페이스 4칸 들여 써야 해요. 비워 둘 거면 pass 를 써요.' };
+      if (/unindent does not match/.test(m)) return { title: `${L}: 들여쓰기 칸 수가 맞지 않아요`, detail: '같은 블록에 있는 줄은 들여쓰기 칸 수가 똑같아야 해요.' };
+      return { title: `${L}: 들여쓰기 오류`, detail: '줄 앞의 공백을 확인해 보세요.' };
+    case 'SyntaxError':
+      if (/never closed|unexpected EOF/.test(m)) return { title: `${L}: 괄호가 닫히지 않았어요`, detail: '여는 괄호 ( 마다 닫는 괄호 ) 가 있어야 해요.' };
+      if (/unmatched/.test(m)) return { title: `${L}: 짝이 안 맞는 괄호가 있어요`, detail: '닫는 괄호 ) 가 너무 많지 않은지 확인해요.' };
+      if (/unterminated string|EOL while scanning/.test(m)) return { title: `${L}: 따옴표가 닫히지 않았어요`, detail: '문자열은 "로 시작하면 "로 끝나야 해요.' };
+      if (/expected ':'/.test(m)) return { title: `${L}: 콜론(:)이 빠졌어요`, detail: 'if, else, for, while, def 줄 끝에는 : 이 꼭 필요해요.' };
+      if (/invalid character|invalid non-printable/.test(m)) return { title: `${L}: 이상한 문자가 들어 있어요`, detail: '한글 자판의 “ ” ‘ ’ （ ） 같은 기호 대신 영문 자판의 " ( ) 를 써요.' };
+      if (/Maybe you meant '=='|cannot assign/.test(m)) return { title: `${L}: = 와 == 를 확인해요`, detail: '값을 넣을 땐 = 하나, 같은지 비교할 땐 == 두 개를 써요.' };
+      if (/Perhaps you forgot a comma/.test(m)) return { title: `${L}: 쉼표나 따옴표가 빠진 것 같아요`, detail: '글자는 따옴표로 감싸고, 여러 값은 쉼표로 구분해요.' };
+      return { title: `${L}: 문법이 맞지 않아요`, detail: '괄호 ( ), 따옴표 " ", 콜론 : 을 하나씩 확인해 보세요.' };
+    case 'NameError': {
+      const nm = (m.match(/name '([^']+)'/) || [])[1] || '';
+      const known = ['move', 'jump', 'turn_left', 'turn_right', 'pick', 'look', 'front_is_clear', 'is_pearl', 'print', 'range'];
+      const k = known.find(x => x.toLowerCase() === nm.toLowerCase() && x !== nm);
+      const tip = k ? `혹시 ${k} 아닌가요? 파이썬은 대문자와 소문자를 구분해요.`
+        : '철자가 틀리진 않았나요? 글자(문자열)라면 따옴표 " " 로 감싸야 해요. 변수라면 먼저 값을 넣어야 해요.';
+      return { title: `${L}: '${nm}'이(가) 무엇인지 몰라요`, detail: tip };
+    }
+    case 'TypeError':
+      if (/can only concatenate str|unsupported operand type/.test(m)) return { title: `${L}: 문자와 숫자를 바로 더할 수 없어요`, detail: 'str(숫자)로 바꾸거나, print(a, b)처럼 쉼표로 이어 보세요.' };
+      if (/positional argument|takes \d+ positional|missing \d+ required/.test(m)) return { title: `${L}: 괄호 안 값의 개수가 맞지 않아요`, detail: '예: move() 는 괄호 안을 비워 두어요.' };
+      if (/not callable/.test(m)) return { title: `${L}: 명령이 아닌 것을 ()로 불렀어요`, detail: '변수 이름 뒤에 괄호를 붙이지 않았는지 확인해요.' };
+      return { title: `${L}: 자료형 오류`, detail: '숫자, 문자열 같은 값의 종류를 확인해 보세요.' };
+    case 'ZeroDivisionError': return { title: `${L}: 0으로 나눌 수 없어요`, detail: '' };
+    case 'ValueError': return { title: `${L}: 값이 올바르지 않아요`, detail: '' };
+    default: return { title: `${L}: ${err.type} 오류`, detail: '' };
+  }
+}
+function lintBareCalls(code) {
+  const warns = [];
+  code.split('\n').forEach((line, i) => {
+    const m = line.replace(/#.*$/, '').match(/^\s*(move|jump|turn_left|turn_right|pick|look|front_is_clear|is_pearl|print|step|turn_around)\s*$/);
+    if (m) warns.push(`주의: ${i + 1}번째 줄: ${m[1]} 뒤에 괄호 ()를 붙여야 명령이 실행돼요!`);
+  });
+  return warns;
+}
+
+
+
+
+
+/* ================= 화면 구성 ================= */
+let cur = 0;
+function firstPlayable(ch) {
+  for (let lv = 0; lv < 3; lv++) { const i = stageIndex(ch, lv); if (!prog.cleared[i] && isUnlocked(i)) return i; }
+  return stageIndex(ch, 0);
+}
+function renderChips() {
+  const el = $('#map'); el.innerHTML = '';
+  const curCh = STAGES[cur].ch;
+  CH.forEach((c, ci) => {
+    const li = document.createElement('li');
+    const idx = [0, 1, 2].map(l => stageIndex(ci, l));
+    const nDone = idx.filter(i => prog.cleared[i]).length;
+    const locked = !isUnlocked(idx[0]);
+    if (ci > 0 && prog.cleared[stageIndex(ci - 1, 0)]) li.classList.add('reached');
+    if (ci === curCh) li.classList.add('is-cur');
+    if (nDone) li.classList.add('is-done');
+    const b = document.createElement('button');
+    b.className = 'node' + (nDone === 3 ? ' done' : '') + (ci === curCh ? ' cur' : '') + (locked ? ' locked' : '');
+    b.textContent = nDone === 3 && ci !== curCh ? '★' : (ci + 1);
+    b.title = `${ci + 1}단원 ${c.name} (${nDone}/3)` + (locked ? ' – 앞 단원의 기본 퀘스트를 먼저 깨요' : '');
+    b.setAttribute('aria-label', b.title);
+    b.onclick = () => { if (!locked && !running) goStage(firstPlayable(ci)); };
+    const pips = document.createElement('div'); pips.className = 'pips';
+    idx.forEach((i, l) => {
+      const p = document.createElement('button');
+      const lk = !isUnlocked(i);
+      p.className = 'pip' + (prog.cleared[i] ? ' done' : '') + (i === cur ? ' cur' : '') + (lk ? ' locked' : '');
+      p.title = `${ci + 1}-${l + 1} ${LV_NAME[l]}: ${c.levels[l].title}`;
+      p.setAttribute('aria-label', p.title);
+      p.onclick = () => { if (!lk && !running) goStage(i); };
+      pips.appendChild(p);
+    });
+    const lb = document.createElement('span'); lb.className = 'lbl'; lb.textContent = c.name;
+    li.append(b, pips, lb); el.appendChild(li);
+  });
+}
+function renderLevels() {
+  const s = STAGES[cur], el = $('#sLevels'); el.innerHTML = '';
+  [0, 1, 2].forEach(l => {
+    const i = stageIndex(s.ch, l), lk = !isUnlocked(i);
+    const b = document.createElement('button');
+    b.className = 'lvbtn' + (i === cur ? ' cur' : '') + (prog.cleared[i] ? ' done' : '') + (lk ? ' locked' : '');
+    b.innerHTML = `${LV_NAME[l]}<span class="st">${LV_STAR[l]}</span>`;
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', i === cur);
+    b.title = lk ? `${LV_NAME[l - 1]} 퀘스트를 먼저 깨면 열려요` : STAGES[i].title;
+    b.onclick = () => { if (!lk && !running && i !== cur) goStage(i); };
+    el.appendChild(b);
+  });
+}
+function goStage(i) {
+  cur = i; const s = STAGES[i];
+  $('#sTab').textContent = `퀘스트 ${s.id}`;
+  $('#sTitle').textContent = s.title;
+  $('#sGoal').textContent = s.goal;
+  $('#sConcept').innerHTML = s.concept;
+  const cmds = $('#sCmds'); cmds.innerHTML = '';
+  s.cmds.forEach(([c, d]) => {
+    const b = document.createElement('button'); b.className = 'cmd';
+    b.innerHTML = esc(c) + `<span>${esc(d)}</span>`;
+    b.title = '눌러서 코드에 넣기';
+    b.onclick = () => insertText(c);
+    cmds.appendChild(b);
+  });
+  ta.value = prog.code[i] ?? s.starter;
+  activeLine = 0; errLine = 0; renderGutter();
+  loadWorld(s.tests[0].map, s.tests[0].dir || 0);
+  $('#hudTest').style.display = s.tests.length > 1 ? '' : 'none';
+  $('#hudTest').textContent = s.tests.length > 1 ? `테스트 ${s.tests.length}개` : '';
+  con.innerHTML = '';
+  logLine('info', '코드를 쓰고 실행을 눌러요. (Ctrl+Enter)');
+  owlTalk(s.intro);
+  renderChips(); renderLevels();
+}
+
+/* ================= 실행 ================= */
+let pyRun = null, running = false;
+function setRunBtn() {
+  const b = $('#runBtn');
+  b.disabled = !pyRun || running;
+  b.innerHTML = !pyRun ? '준비 중…' : running ? '실행 중…' : '▶ 실행<span class="key">Ctrl+Enter</span>';
+}
+async function runCode() {
+  if (!pyRun || running) return;
+  running = true; setRunBtn(); closeModal();
+  const s = STAGES[cur], code = ta.value;
+  con.innerHTML = ''; setErrLine(0);
+  lintBareCalls(code).forEach(w => logLine('warn', w));
+  let lastResult = null;
+  for (let i = 0; i < s.tests.length; i++) {
+    const tcase = s.tests[i];
+    loadWorld(tcase.map, tcase.dir || 0);
+    if (s.tests.length > 1) { $('#hudTest').textContent = `테스트 ${i + 1}/${s.tests.length}: ${tcase.label}`; logLine('info', `── 테스트 ${i + 1}/${s.tests.length}: ${tcase.label} ──`); }
+    await sleep(250);
+    let r;
+    try { r = JSON.parse(pyRun(code, JSON.stringify({ map: tcase.map, dir: tcase.dir || 0 }))); }
+    catch (e) { r = { log: [], out: [], vars: {}, gemsLeft: 1, err: { kind: 'stop', msg: '실행 중에 알 수 없는 문제가 생겼어요.', line: 0 } }; }
+    for (const e of r.log) await playStep(e);
+    setActiveLine(0);
+    if (r.err) {
+      const ex = explainError(r.err);
+      logHTML('err', `<b>${esc(ex.title)}</b>${ex.detail ? '<br>' + esc(ex.detail) : ''}` +
+        (r.err.kind === 'py' ? `<br><span class="raw">파이썬 원래 메시지: ${esc(r.err.type)}: ${esc(r.err.msg)}</span>` : ''));
+      setErrLine(r.err.line); sfx.err();
+      owlTalk(r.err.kind === 'stop' ? '앗! 파이가 멈췄어. 아래 메시지를 읽고 코드를 고쳐 보자.' : '어라, 파이썬이 코드를 이해하지 못했대. 빨간 줄을 확인해 봐!');
+      running = false; setRunBtn(); return;
+    }
+    const msg = s.check(r, code);
+    if (msg) {
+      logLine('warn', msg); sfx.err();
+      owlTalk('아쉽다! ' + msg);
+      running = false; setRunBtn(); return;
+    }
+    if (s.tests.length > 1) logLine('ok', `테스트 ${i + 1} 통과`);
+    lastResult = r;
+    if (i < s.tests.length - 1) await sleep(500 / speed);
+  }
+  // 클리어
+  if (s.onClear) s.onClear(lastResult);
+  prog.cleared[cur] = true; prog.code[cur] = code; saveProg(); renderChips();
+  if (s.owlReply) owlBubble = { text: s.owlReply, until: performance.now() + 2500 };
+  logLine('ok', '클리어!');
+  sfx.win();
+  const nm = prog.name || '탐험가';
+  owlTalk(s.success(nm));
+  running = false; setRunBtn();
+  await sleep(700);
+  showClear();
+}
+
+
+
+
+
+/* ================= 모달 ================= */
+const modal = $('#modal'), mbox = $('#mbox');
+function closeModal() { modal.classList.remove('show'); }
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+function showClear() {
+  const s = STAGES[cur];
+  renderLevels();
+  if (s.ch === CH.length - 1 && s.lv === 2) {
+    const nm = prog.name || '탐험가';
+    const n = Object.keys(prog.cleared).filter(k => prog.cleared[k]).length;
+    mbox.innerHTML = `<canvas class="px" id="mIcon" width="16" height="16"></canvas><h3>모험 완주!</h3>
+      <p><b>${esc(nm)}</b>, 마지막 도전 퀘스트까지 깼어요. (퀘스트 ${n} / ${STAGES.length})</p>
+      <ol><li>print 출력</li><li>변수</li><li>명령 순서</li><li>for 반복</li><li>방향 바꾸기</li><li>if / elif / else 조건</li><li>while 반복</li><li>def 함수 만들기</li></ol>
+      <div class="bar"><button class="pbtn" id="mClose">닫기</button><button class="pbtn run" id="mGo">1단원으로</button></div>`;
+    paintTo($('#mIcon'), 'dino0');
+    $('#mGo').onclick = () => { closeModal(); goStage(0); };
+  } else {
+    const nextLv = s.lv < 2 ? cur + 1 : null;
+    const nextCh = s.ch < CH.length - 1 ? stageIndex(s.ch + 1, 0) : null;
+    const basicDone = s.ch === CH.length - 1 && s.lv === 0
+      ? '<br>기본 코스를 모두 마쳤어요! 응용·도전 퀘스트도 깨 보세요.' : '';
+    const primary = nextLv !== null ? [`다음: ${LV_NAME[s.lv + 1]} ${LV_STAR[s.lv + 1]}`, nextLv] : [`${s.ch + 2}단원으로`, nextCh];
+    const secondary = nextLv !== null && nextCh !== null ? [`${s.ch + 2}단원으로`, nextCh] : ['여기 더 있기', null];
+    mbox.innerHTML = `<canvas class="px" id="mIcon" width="16" height="16"></canvas><h3>클리어!</h3>
+      <p>${esc(s.tag)} <b>${LV_NAME[s.lv]}</b> 퀘스트를 깼어요.${basicDone}</p>
+      <div class="bar"><button class="pbtn" id="mSec">${esc(secondary[0])}</button><button class="pbtn run" id="mGo">${esc(primary[0])}</button></div>`;
+    paintTo($('#mIcon'), 'pearl');
+    $('#mGo').onclick = () => { closeModal(); goStage(primary[1]); };
+    $('#mSec').onclick = () => { closeModal(); if (secondary[1] !== null) goStage(secondary[1]); };
+  }
+  const c = $('#mClose'); if (c) c.onclick = closeModal;
+  modal.classList.add('show');
+  setTimeout(() => $('#mGo').focus(), 50);
+}
+
+/* ================= 버튼들 ================= */
+$('#runBtn').onclick = runCode;
+$('#hintBtn').onclick = () => { const h = STAGES[cur].hint; logLine('warn', '힌트: ' + h); owlTalk('힌트를 줄게! ' + h); };
+$('#speedBtn').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; $('#speedBtn').textContent = `속도 ${speed}x`; };
+let resetArmed = null;
+$('#resetBtn').onclick = () => {
+  const b = $('#resetBtn');
+  if (!resetArmed) { b.textContent = '정말 지울까요?'; resetArmed = setTimeout(() => { resetArmed = null; b.textContent = '처음 코드로'; }, 2500); return; }
+  clearTimeout(resetArmed); resetArmed = null; b.textContent = '처음 코드로';
+  ta.value = STAGES[cur].starter; delete prog.code[cur]; saveProg(); errLine = 0; renderGutter();
+  loadWorld(STAGES[cur].tests[0].map, STAGES[cur].tests[0].dir || 0);
+};
+$('#muteBtn').onclick = () => { muted = !muted; $('#muteBtn').textContent = muted ? '소리 켜기' : '소리 끄기'; };
+$('#unlockBtn').onclick = () => { prog.unlockAll = !prog.unlockAll; saveProg(); renderChips(); $('#unlockBtn').textContent = prog.unlockAll ? '퀘스트 잠금 다시 켜기' : '전체 퀘스트 열기 (교사용)'; };
+let wipeArmed = null;
+$('#wipeBtn').onclick = () => {
+  const b = $('#wipeBtn');
+  if (!wipeArmed) { b.textContent = '한 번 더 누르면 모두 지워져요'; wipeArmed = setTimeout(() => { wipeArmed = null; b.textContent = '진행 상황 초기화'; }, 3000); return; }
+  clearTimeout(wipeArmed); wipeArmed = null; b.textContent = '진행 상황 초기화';
+  prog = { cleared: {}, name: '', code: {}, unlockAll: false }; saveProg(); goStage(0);
+};
+
+
+
+
+
+/* ================= 시작 ================= */
+paintTo($('#logoDino'), 'dino0');
+paintTo($('#owlFace'), 'turtle');
+resize();
+if (prog.unlockAll) $('#unlockBtn').textContent = '퀘스트 잠금 다시 켜기';
+{
+  const start = STAGES.findIndex((s, i) => !prog.cleared[i] && isUnlocked(i));
+  goStage(start < 0 ? 0 : start);
+}
+setRunBtn();
+(document.fonts ? document.fonts.load('15px Galmuri11') : Promise.resolve()).catch(() => {}).finally(() => requestAnimationFrame(frame));
+(async () => {
+  try {
+    const py = await loadPyodide();
+    py.runPython(document.getElementById('runner').textContent);
+    pyRun = py.globals.get('_run');
+    $('#loading').classList.add('hide');
+  } catch (e) {
+    $('#loading').textContent = '파이썬 엔진을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.';
+  }
+  setRunBtn();
+})();
+
+</script>
+</body>
+</html>
